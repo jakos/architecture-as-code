@@ -1,0 +1,13 @@
+{
+  "attribution": { "commit": "", "pr": "", "sessionUrl": false },
+  "enabledPlugins": { "dev-baseline@claude-baseline": true },
+  "permissions": {
+    "allow": [
+      "Bash(just:*)", "Bash(uv run:*)", "Bash(uv sync)",
+      "Bash(git diff:*)", "Bash(git status)", "Bash(git log:*)",
+      "Bash(podman ps:*)", "Bash(podman logs:*)", "Bash(docker ps:*)", "Bash(docker logs:*)"
+    ],
+    "ask": ["Bash(git push:*)", "Bash(gh pr create:*)", "Bash(kubectl:*)"],
+    "deny": ["Read(./.env)"]
+  }
+}

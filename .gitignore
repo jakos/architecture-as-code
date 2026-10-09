@@ -1,0 +1,12 @@
+.venv/
+__pycache__/
+.pytest_cache/
+.ruff_cache/
+.env
+.claude/settings.local.json
+# Structurizr writes these next to a workspace when run locally
+**/.structurizr/
+build/
+# `structurizr local` rewrites this on every load; with autolayout it is only a cache.
+# To keep a hand-made layout, commit it deliberately: git add -f <dir>/workspace.json
+workspace.json

@@ -1,0 +1,25 @@
+# Local containers for working on a workspace. Run via `just up` / `just server`.
+# Works with `podman compose` and `docker compose`.
+name: architecture-as-code
+
+services:
+  # Authoring: re-renders the DSL on every browser refresh. Edits the files in the repo
+  # checkout directly (Flow A). Diagram layout is saved as workspace.json beside the DSL.
+  structurizr-local:
+    image: docker.io/structurizr/structurizr:2026.09.19
+    command: ["local"]
+    ports: ["8080:8080"]
+    volumes:
+      - ../${WORKSPACE:-examples/shop}:/usr/local/structurizr
+
+  # Exploring: the static site from `structurizr export -f static` (free, same viewer
+  # as the server, read-only). Build it with `just site`. This is what CI will publish.
+  site:
+    image: docker.io/library/nginx:1.29-alpine
+    profiles: ["site"]
+    ports: ["8081:80"]
+    volumes:
+      - ../build/site:/usr/share/nginx/html:ro
+
+  # The prebuilt Structurizr server needs a paid license (14-day trial available);
+  # see docs/decisions/0004. Not used until that is decided.
