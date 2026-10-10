@@ -1,0 +1,37 @@
+# B1 editor, LikeC4 variant (local PoC): code-server + LikeC4 extension + `likec4 start` + `submit`.
+# Build from the repo root: just editor-build  (context = repo root, see docker/compose.editor.yml)
+# Licences: code-server MIT; likec4 CLI MIT; Node.js MIT; likec4-vscode extension MIT.
+
+# likec4 needs Node >= 22.22.3. Install it with npm in the matching Debian-based node image
+# and copy node plus the global modules over (same glibc family as code-server's base).
+FROM docker.io/library/node:22.22.3-trixie-slim AS node
+RUN npm install -g likec4@1.59.4
+
+FROM docker.io/codercom/code-server:4.141.0-trixie
+
+USER root
+# apt packages are not version-pinned: they come from the Debian trixie archive at build time.
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends python3 \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY --from=node /usr/local/bin/node /usr/local/bin/node
+COPY --from=node /usr/local/lib/node_modules /usr/local/lib/node_modules
+# The dev server (vite) writes its dependency cache inside the package directory.
+RUN ln -s ../lib/node_modules/likec4/bin/likec4.mjs /usr/local/bin/likec4 \
+    && mkdir -p /usr/local/lib/node_modules/likec4/node_modules/.vite \
+    && chown -R coder /usr/local/lib/node_modules/likec4/node_modules/.vite \
+    && printf '%s\n' '#!/bin/sh' \
+      'exec python3 /usr/local/lib/poc/submit.py --tool likec4 --path trial/likec4/shop --repo /home/coder/model "$@"' \
+      > /usr/local/bin/submit \
+    && chmod 0755 /usr/local/bin/submit
+
+COPY tools/submit.py tools/poc_remote.py docker/editor/entrypoint.py /usr/local/lib/poc/
+
+USER coder
+RUN code-server --install-extension likec4.likec4-vscode@1.59.4
+
+# No password or token here: PASSWORD comes from the environment at run time.
+ENV RENDERER=likec4 MODEL_PATH=trial/likec4/shop
+EXPOSE 8080 5173
+ENTRYPOINT ["python3", "/usr/local/lib/poc/entrypoint.py"]

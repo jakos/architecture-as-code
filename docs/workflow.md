@@ -4,7 +4,9 @@ Status: **draft**. A box marked ✅ exists in the repo; ⏳ is designed but not 
 Research on the technical flow, the browser editor and the branch/PR lifecycle:
 [research/structurizr-workflows.md](research/structurizr-workflows.md).
 LikeC4 compared with this workflow: [research/likec4-comparison.md](research/likec4-comparison.md)
-(proposed [ADR 0005](decisions/0005-trial-likec4-for-the-editor-path.md): a trial, not accepted).
+([ADR 0005](decisions/0005-trial-likec4-for-the-editor-path.md), accepted: a trial of LikeC4 for
+the editor path). The local PoC of Flow B1 in both tools, with measurements:
+[research/likec4-trial-poc.md](research/likec4-trial-poc.md).
 
 ```
             ┌───────────── Flow A: edit in repo ─────────────┐
@@ -25,7 +27,7 @@ LikeC4 compared with this workflow: [research/likec4-comparison.md](research/lik
 3. `just check` validates every workspace (also runs on pre-push and in CI).
 4. Branch, commit, PR as usual.
 
-## Flow B1: editor in a container that opens PRs ⏳
+## Flow B1: editor in a container that opens PRs ⏳ (local PoC built, no PR opened yet)
 
 Goal: someone without a local checkout edits the model in a browser and the result
 arrives as a PR. Structurizr itself cannot write DSL back to git, so the container wraps it:
@@ -38,6 +40,17 @@ arrives as a PR. Structurizr itself cannot write DSL back to git, so the contain
   `gh pr create`. Auth via a fine-grained GitHub token with only `contents:write` and
   `pull_requests:write` on this repo, passed as an env var, never baked into the image.
 - It can never push to `main`: the script refuses, and branch protection enforces it.
+
+Local PoC (✅ built and run locally; results in
+[research/likec4-trial-poc.md](research/likec4-trial-poc.md)): `just editor-build`, then
+`just poc-remote` (a local bare repo `build/poc-remote.git` stands in for GitHub), then
+`just editor-up TOOL=structurizr` or `just editor-up TOOL=likec4` (needs `PASSWORD`,
+`MODEL_USER` and `MODEL_SLUG`, see `.env.example`). code-server is on http://127.0.0.1:8090
+(Structurizr, render on 8091) or http://127.0.0.1:8092 (LikeC4, dev server on 8093).
+`submit` (`tools/submit.py`) validates, commits the model directory, sends the `model/*`
+branch to the bare repo and prints the `gh pr create` command; it does not run it.
+`just editor-down` stops both. The LikeC4 variant edits `trial/likec4/shop`
+([README](../trial/likec4/README.md), checked with `just trial-check`).
 
 The two earlier open questions are answered in the
 [research draft](research/structurizr-workflows.md#open-questions-from-flow-b1): one

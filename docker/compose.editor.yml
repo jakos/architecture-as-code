@@ -1,0 +1,45 @@
+# B1 editor PoC (local only): one editor per tool, each on a fresh clone of the local bare
+# remote build/poc-remote.git. Images come from `just editor-build`; start one with
+# `just editor-up TOOL=structurizr` or `just editor-up TOOL=likec4`. All ports are bound to 127.0.0.1.
+# No values for PASSWORD etc. live here: they come from the environment (.env is
+# gitignored) and the entrypoint refuses to start without them.
+# Podman only: userns_mode keep-id has no Docker equivalent.
+name: architecture-as-code-editor
+
+services:
+  editor-structurizr:
+    image: localhost/aac-editor-structurizr:poc
+    container_name: poc-editor-structurizr
+    profiles: ["structurizr"]
+    userns_mode: "keep-id:uid=1000,gid=1000" # bind mounts from a Windows host: coder must own them
+    ports:
+      - "127.0.0.1:8090:8080" # code-server
+      - "127.0.0.1:8091:8081" # structurizr local (read-only render)
+    environment:
+      REPO_URL: /remote/repo.git
+      PASSWORD: ${PASSWORD:-}
+      MODEL_USER: ${MODEL_USER:-}
+      MODEL_SLUG: ${MODEL_SLUG:-}
+      SPARSE_EXCLUDE: ${SPARSE_EXCLUDE:-}
+    volumes:
+      - ../build/poc-remote.git:/remote/repo.git
+      - ../build/editor/structurizr/model:/home/coder/model
+
+  editor-likec4:
+    image: localhost/aac-editor-likec4:poc
+    container_name: poc-editor-likec4
+    profiles: ["likec4"]
+    userns_mode: "keep-id:uid=1000,gid=1000"
+    ports:
+      - "127.0.0.1:8092:8080" # code-server
+      - "127.0.0.1:8093:5173" # likec4 start (dev server)
+      - "127.0.0.1:24678:24678" # vite HMR websocket, needed for live updates in the browser
+    environment:
+      REPO_URL: /remote/repo.git
+      PASSWORD: ${PASSWORD:-}
+      MODEL_USER: ${MODEL_USER:-}
+      MODEL_SLUG: ${MODEL_SLUG:-}
+      SPARSE_EXCLUDE: ${SPARSE_EXCLUDE:-}
+    volumes:
+      - ../build/poc-remote.git:/remote/repo.git
+      - ../build/editor/likec4/model:/home/coder/model
