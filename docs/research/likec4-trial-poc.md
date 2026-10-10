@@ -248,6 +248,9 @@ Representative screenshots (not committed; in `build/trial-runs/`), **AI stand-i
   never renders; cause not confirmed. The extension's language server did work: live diagnostics
   in Problems, an `open preview` code lens, breadcrumbs.
 
+The questions about the layout-edit `.snap` files, the LikeC4 playground and an editing service
+without code-server are in [likec4-web-editing.md](likec4-web-editing.md).
+
 ### Renderer behaviour (no browser; measured on the server side)
 
 | Measure | Structurizr (`structurizr local`) | LikeC4 (`likec4 start`) |

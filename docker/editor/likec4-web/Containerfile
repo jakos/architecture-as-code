@@ -1,0 +1,32 @@
+# B1 editing service, LikeC4 variant (local PoC): a browser page with a text editor next to the
+# live `likec4 start` diagram, plus `submit`. No code-server. See tools/web_editor.py.
+# Build from the repo root: just editor-build
+# Licences: likec4 CLI MIT; Node.js MIT; the page and web_editor.py are this repo's code.
+
+FROM docker.io/library/node:22.22.3-trixie-slim
+
+# apt packages are not version-pinned: they come from the Debian trixie archive at build time.
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends python3 git \
+    && rm -rf /var/lib/apt/lists/* \
+    && npm install -g likec4@1.59.4 \
+    && usermod -l coder -d /home/coder -m node \
+    && groupmod -n coder node
+# The base image's `node` user has uid 1000; it is renamed so paths match the other editor images.
+# The dev server (vite) writes its dependency cache inside the package directory.
+RUN mkdir -p /usr/local/lib/node_modules/likec4/node_modules/.vite \
+    && chown -R coder /usr/local/lib/node_modules/likec4/node_modules/.vite \
+    && printf '%s\n' '#!/bin/sh' \
+      'exec python3 /usr/local/lib/poc/submit.py --tool likec4 --path trial/likec4/shop --repo /home/coder/model "$@"' \
+      > /usr/local/bin/submit \
+    && chmod 0755 /usr/local/bin/submit
+
+COPY tools/submit.py tools/poc_remote.py tools/web_editor.py tools/web_editor.html \
+     docker/editor/entrypoint.py /usr/local/lib/poc/
+
+USER coder
+WORKDIR /home/coder
+# No password or token here: PASSWORD comes from the environment at run time.
+ENV RENDERER=likec4 MODEL_PATH=trial/likec4/shop EDITOR_UI=web
+EXPOSE 8080 5173
+ENTRYPOINT ["python3", "/usr/local/lib/poc/entrypoint.py"]

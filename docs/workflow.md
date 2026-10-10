@@ -52,6 +52,13 @@ branch to the bare repo and prints the `gh pr create` command; it does not run i
 `just editor-down` stops both. The LikeC4 variant edits `trial/likec4/shop`
 ([README](../trial/likec4/README.md), checked with `just trial-check`).
 
+Editing service (✅ local PoC, no code-server): `just editor-up likec4-web` serves a page with
+a text editor and the live LikeC4 diagram, on http://127.0.0.1:8094 (password) with the
+diagram on http://127.0.0.1:8095. It writes the `.c4` files of the fresh clone and sends them
+through the same `submit`; it is chosen with `EDITOR_UI=web` (`RENDER_URL` and `HMR_PORT` are
+set by `docker/compose.editor.yml`). Details, measurements and open questions:
+[research/likec4-web-editing.md](research/likec4-web-editing.md).
+
 The two earlier open questions are answered in the
 [research draft](research/structurizr-workflows.md#open-questions-from-flow-b1): one
 container per editing session, and `playground` cannot replace code-server (it cannot

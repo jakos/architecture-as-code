@@ -1,0 +1,24 @@
+# LikeC4 playground, self-hosted (local trial only): the static single-page app of
+# apps/playground at the LikeC4 tag v1.59.4, built from source and served by nginx.
+# Build: just playground-build  (context = repo root; needs network for GitHub and npm)
+# What is NOT here: the playground's Cloudflare Worker (share links, GitHub login, KV), so
+# /api, /auth and /share do not work. Edits live in the browser's localStorage.
+# Licences: LikeC4 MIT; nginx BSD-2-Clause; Node.js MIT.
+
+FROM docker.io/library/node:22.22.3-trixie-slim AS build
+# apt packages are not version-pinned: they come from the Debian trixie archive at build time.
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends git ca-certificates python3 make g++ \
+    && rm -rf /var/lib/apt/lists/* \
+    && npm install -g pnpm@11.25.0
+WORKDIR /src
+RUN git clone --depth 1 --branch v1.59.4 https://github.com/likec4/likec4.git . \
+    && git rev-parse HEAD
+RUN pnpm install --frozen-lockfile --filter '@likec4/playground...'
+WORKDIR /src/apps/playground
+RUN CI=1 pnpm exec turbo run build --ui=stream
+
+FROM docker.io/library/nginx:1.29.4-alpine
+COPY docker/editor/likec4-playground/nginx.conf /etc/nginx/conf.d/default.conf
+COPY --from=build /src/apps/playground/dist/client /usr/share/nginx/html
+EXPOSE 80

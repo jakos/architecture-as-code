@@ -10,6 +10,10 @@ owner decides otherwise.
   `kubernetes_name` metadata keys, because LikeC4 metadata keys cannot contain a dot.
 - Check it with `just trial-check` (runs `likec4 validate` and `likec4 format --check` in the
   pinned `docker.io/likec4/likec4:1.59.4` image).
+- Dragging an element in the `likec4 start` "Edit" mode writes a layout file
+  `<view>.likec4.snap` into `shop/.likec4/`; `submit` commits the whole model directory, so it
+  would be part of the PR. Whether to keep or ignore these files is open, see
+  [docs/research/likec4-web-editing.md](../../docs/research/likec4-web-editing.md).
 - The measured comparison with Structurizr is in
   [docs/research/likec4-trial-poc.md](../../docs/research/likec4-trial-poc.md).
 

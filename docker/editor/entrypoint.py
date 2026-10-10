@@ -6,7 +6,10 @@ Environment (nothing is baked into the image):
   MODEL_SLUG      short description of the change; used in the branch name
   RENDERER        structurizr | likec4
   MODEL_PATH      model directory inside the clone (examples/shop or trial/likec4/shop)
-  PASSWORD        code-server login password
+  PASSWORD        login password of the editor UI (code-server, or web_editor.py in web mode)
+  EDITOR_UI       code-server (default) | web (tools/web_editor.py: text editor + live diagram)
+  RENDER_URL      web mode: URL of the renderer as the browser reaches it (iframe source)
+  HMR_PORT        likec4 only: fixed port of the dev server's HMR websocket (default: automatic)
   SPARSE_EXCLUDE  optional, space-separated paths left out of the checkout
   MODEL_DIR       clone location (default /home/coder/model, a bind mount)
 
@@ -24,6 +27,8 @@ from pathlib import Path
 CODE_SERVER_PORT = 8080
 RENDER_PORT = 8081  # structurizr local; likec4 start uses 5173 and is mapped by compose
 LIKEC4_PORT = 5173
+EDITOR_UIS = ("code-server", "web")
+WEB_EDITOR = "/usr/local/lib/poc/web_editor.py"
 SLUG_RE = re.compile(r"^[a-z0-9][a-z0-9-]*$")
 USER_RE = re.compile(r"^[a-z0-9][a-z0-9._-]*$")
 
@@ -84,7 +89,9 @@ def prepare_clone(env: Mapping[str, str], today: datetime.date) -> tuple[Path, s
     return model_dir, branch
 
 
-def renderer_command(renderer: str, workdir: Path) -> tuple[list[str], dict[str, str]]:
+def renderer_command(
+    renderer: str, workdir: Path, env: Mapping[str, str] | None = None
+) -> tuple[list[str], dict[str, str]]:
     if renderer == "structurizr":
         cmd = ["structurizr", "local", str(workdir)]  # local takes its data dir as an argument
         extra = {
@@ -97,8 +104,36 @@ def renderer_command(renderer: str, workdir: Path) -> tuple[list[str], dict[str,
         cmd = [
             "likec4", "start", "--listen", "0.0.0.0", "--port", str(LIKEC4_PORT), "--no-use-dot",
         ]  # fmt: skip
+        hmr_port = (env or {}).get("HMR_PORT", "").strip()
+        if hmr_port:
+            cmd += ["--hmr-port", hmr_port]
         return cmd, {"CHOKIDAR_USEPOLLING": "true"}
     raise SetupError(f"RENDERER '{renderer}' must be structurizr or likec4")
+
+
+def editor_ui(env: Mapping[str, str]) -> str:
+    ui = env.get("EDITOR_UI", "").strip() or "code-server"
+    if ui not in EDITOR_UIS:
+        raise SetupError(f"EDITOR_UI '{ui}' must be one of: {', '.join(EDITOR_UIS)}")
+    return ui
+
+
+def editor_command(env: Mapping[str, str], model_dir: Path) -> list[str]:
+    """The command that replaces this process: code-server by default, or the web editor."""
+    if editor_ui(env) == "code-server":
+        return [
+            "code-server", "--bind-addr", f"0.0.0.0:{CODE_SERVER_PORT}", "--auth", "password",
+            "--disable-telemetry", "--disable-update-check", str(model_dir),
+        ]  # fmt: skip
+    return [
+        "python3", WEB_EDITOR, "--repo", str(model_dir), "--path", require(env, "MODEL_PATH"),
+        "--port", str(CODE_SERVER_PORT), "--render-url", require(env, "RENDER_URL"),
+    ]  # fmt: skip
+
+
+def renderer_env(env: Mapping[str, str], extra: Mapping[str, str]) -> dict[str, str]:
+    """Environment of the renderer: the editor UI's PASSWORD is not passed on."""
+    return {**{k: v for k, v in env.items() if k != "PASSWORD"}, **extra}
 
 
 def main() -> int:
@@ -109,7 +144,9 @@ def main() -> int:
         model_path = require(env, "MODEL_PATH")
         if renderer not in ("structurizr", "likec4"):
             raise SetupError(f"RENDERER '{renderer}' must be structurizr or likec4")
+        editor_ui(env)
         model_dir, branch = prepare_clone(env, datetime.date.today())
+        command = editor_command(env, model_dir)
     except SetupError as err:
         print(f"entrypoint: {err}", file=sys.stderr)
         return 1
@@ -118,17 +155,10 @@ def main() -> int:
     if not workdir.is_dir():
         print(f"entrypoint: {workdir} does not exist in the clone", file=sys.stderr)
         return 1
-    cmd, extra = renderer_command(renderer, workdir)
+    cmd, extra = renderer_command(renderer, workdir, env)
     print(f"editor ready on branch {branch}; rendering {model_path} with {renderer}", flush=True)
-    renderer_env = {k: v for k, v in env.items() if k != "PASSWORD"}  # only code-server needs it
-    subprocess.Popen(cmd, cwd=workdir, env={**renderer_env, **extra})
-    os.execvp(
-        "code-server",
-        [
-            "code-server", "--bind-addr", f"0.0.0.0:{CODE_SERVER_PORT}", "--auth", "password",
-            "--disable-telemetry", "--disable-update-check", str(model_dir),
-        ],
-    )  # fmt: skip
+    subprocess.Popen(cmd, cwd=workdir, env=renderer_env(env, extra))
+    os.execvp(command[0], command)
 
 
 if __name__ == "__main__":

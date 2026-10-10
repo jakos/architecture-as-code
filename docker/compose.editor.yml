@@ -43,3 +43,36 @@ services:
     volumes:
       - ../build/poc-remote.git:/remote/repo.git
       - ../build/editor/likec4/model:/home/coder/model
+
+  # Editing service: tools/web_editor.py (text editor + live diagram), no code-server.
+  # Page on 8094 (Basic auth, PASSWORD); the diagram is the likec4 dev server on 8095, which
+  # has no password of its own (acceptable on 127.0.0.1 only).
+  editor-likec4-web:
+    image: localhost/aac-editor-likec4-web:poc
+    container_name: poc-editor-likec4-web
+    profiles: ["likec4-web"]
+    userns_mode: "keep-id:uid=1000,gid=1000"
+    ports:
+      - "127.0.0.1:8094:8080" # editing page + API
+      - "127.0.0.1:8095:5173" # likec4 start (dev server, shown in the page's iframe)
+      - "127.0.0.1:24679:24679" # vite HMR websocket (fixed port via HMR_PORT)
+    environment:
+      REPO_URL: /remote/repo.git
+      PASSWORD: ${PASSWORD:-}
+      MODEL_USER: ${MODEL_USER:-}
+      MODEL_SLUG: ${MODEL_SLUG:-}
+      SPARSE_EXCLUDE: ${SPARSE_EXCLUDE:-}
+      RENDER_URL: http://127.0.0.1:8095
+      HMR_PORT: "24679"
+    volumes:
+      - ../build/poc-remote.git:/remote/repo.git
+      - ../build/editor/likec4-web/model:/home/coder/model
+
+  # Self-built LikeC4 playground (static app only, no Worker): edits stay in the browser's
+  # localStorage. Build with `just playground-build`, start with `just playground-up`.
+  likec4-playground:
+    image: localhost/aac-likec4-playground:v1.59.4
+    container_name: poc-likec4-playground
+    profiles: ["likec4-playground"]
+    ports:
+      - "127.0.0.1:8096:80"

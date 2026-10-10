@@ -1,0 +1,148 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Model editor</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  html, body { height: 100%; margin: 0; font: 14px system-ui, sans-serif; }
+  body { display: flex; flex-direction: column; }
+  header { display: flex; gap: 8px; align-items: center; padding: 6px 10px; background: #f3f3f3;
+           border-bottom: 1px solid #ccc; flex-wrap: wrap; }
+  header .grow { flex: 1; }
+  main { flex: 1; display: flex; min-height: 0; }
+  #left { width: 45%; display: flex; flex-direction: column; border-right: 1px solid #ccc; }
+  #editor { flex: 1; font: 13px ui-monospace, Consolas, monospace; tab-size: 2; padding: 8px;
+            border: 0; resize: none; outline: none; white-space: pre; overflow: auto; }
+  #output { height: 140px; margin: 0; padding: 6px 10px; overflow: auto; background: #1e1e1e;
+            color: #ddd; font: 12px ui-monospace, Consolas, monospace; white-space: pre-wrap; }
+  iframe { flex: 1; border: 0; }
+  #saved.dirty { color: #b45309; }
+  #saved.error { color: #b91c1c; }
+</style>
+</head>
+<body>
+<header>
+  <label>File <select id="files"></select></label>
+  <button id="validate">Validate</button>
+  <button id="format">Format</button>
+  <button id="submit">Submit</button>
+  <span class="grow"></span>
+  <span>Branch: <b id="branch">?</b></span>
+  <span id="saved">saved</span>
+</header>
+<main>
+  <section id="left">
+    <textarea id="editor" spellcheck="false" aria-label="Model source"></textarea>
+    <pre id="output" aria-live="polite">Ready.</pre>
+  </section>
+  <iframe id="render" src="__RENDER_URL__" title="Diagram"></iframe>
+</main>
+<script>
+"use strict";
+const $ = (id) => document.getElementById(id);
+const editor = $("editor"), files = $("files"), saved = $("saved"), output = $("output");
+let current = null, timer = null, dirty = false;
+
+function setSaved(state, text) { saved.className = state; saved.textContent = text; }
+function show(text) { output.textContent = text; }
+
+async function api(method, url, body) {
+  const options = { method, headers: {} };
+  if (body !== undefined) {
+    options.headers["Content-Type"] = "application/json";
+    options.body = JSON.stringify(body);
+  }
+  const response = await fetch(url, options);
+  const data = await response.json();
+  if (!response.ok) throw new Error(data.error || response.statusText);
+  return data;
+}
+
+async function refreshStatus() {
+  try {
+    const s = await api("GET", "/api/status");
+    $("branch").textContent = s.branch || "?";
+  } catch (err) { show(String(err)); }
+}
+
+async function load(path) {
+  const data = await api("GET", "/api/file?path=" + encodeURIComponent(path));
+  current = path;
+  editor.value = data.text;
+  dirty = false;
+  setSaved("", "saved");
+}
+
+async function save() {
+  clearTimeout(timer);
+  if (!current || !dirty) return;
+  const text = editor.value;
+  try {
+    await api("PUT", "/api/file?path=" + encodeURIComponent(current), { text });
+    if (editor.value === text) { dirty = false; setSaved("", "saved"); }
+    refreshStatus();
+  } catch (err) { setSaved("error", "save failed: " + err.message); }
+}
+
+function schedule() {
+  dirty = true;
+  setSaved("dirty", "unsaved");
+  clearTimeout(timer);
+  timer = setTimeout(save, 800);
+}
+
+function formatResults(data) {
+  return data.results.map((r) => "$ " + r.command + "\n(exit " + r.exit + ") " + r.output).join("\n\n");
+}
+
+async function run(label, fn) {
+  await save();
+  show(label + "...");
+  try { show(await fn()); } catch (err) { show(label + " failed: " + err.message); }
+  refreshStatus();
+}
+
+editor.addEventListener("input", schedule);
+editor.addEventListener("keydown", (event) => {
+  if (event.key === "Tab") {
+    event.preventDefault();
+    const { selectionStart: a, selectionEnd: b } = editor;
+    editor.setRangeText("  ", a, b, "end");
+    schedule();
+  } else if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "s") {
+    event.preventDefault();
+    save();
+  }
+});
+files.addEventListener("change", async () => { await save(); await load(files.value); });
+
+$("validate").addEventListener("click", () => run("Validate", async () => {
+  const data = await api("POST", "/api/validate", {});
+  return (data.ok ? "VALID\n\n" : "INVALID\n\n") + formatResults(data);
+}));
+
+$("format").addEventListener("click", () => run("Format", async () => {
+  const data = await api("POST", "/api/format", {});
+  if (current) await load(current);
+  return formatResults(data);
+}));
+
+$("submit").addEventListener("click", () => {
+  const message = window.prompt("Short description of the change (commit message and PR title):");
+  if (message === null) return;
+  run("Submit", async () => (await api("POST", "/api/submit", { message })).output);
+});
+
+(async function init() {
+  try {
+    const list = (await api("GET", "/api/files")).files;
+    for (const name of list) files.add(new Option(name, name));
+    if (list.length) await load(list[0]);
+    else show("No .c4 files found in the model directory.");
+  } catch (err) { show(String(err)); }
+  refreshStatus();
+})();
+</script>
+</body>
+</html>
