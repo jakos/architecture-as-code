@@ -1,6 +1,10 @@
 # Workflow (draft)
 
 Status: **draft**. A box marked ✅ exists in the repo; ⏳ is designed but not built yet.
+Research on the technical flow, the browser editor and the branch/PR lifecycle:
+[research/structurizr-workflows.md](research/structurizr-workflows.md).
+LikeC4 compared with this workflow: [research/likec4-comparison.md](research/likec4-comparison.md)
+(proposed [ADR 0005](decisions/0005-trial-likec4-for-the-editor-path.md): a trial, not accepted).
 
 ```
             ┌───────────── Flow A: edit in repo ─────────────┐
@@ -35,9 +39,12 @@ arrives as a PR. Structurizr itself cannot write DSL back to git, so the contain
   `pull_requests:write` on this repo, passed as an env var, never baked into the image.
 - It can never push to `main`: the script refuses, and branch protection enforces it.
 
-Open questions: one container per editing session or long-lived per person? Is the
-`playground` mode of the Structurizr image a usable browser DSL editor in place of
-code-server?
+The two earlier open questions are answered in the
+[research draft](research/structurizr-workflows.md#open-questions-from-flow-b1): one
+container per editing session, and `playground` cannot replace code-server (it cannot
+read or write files in a clone). The research adds two details to the design above:
+set `STRUCTURIZR_EDITABLE=false` in the editor container (layout changes would not reach
+the PR anyway), and enforce "no push to `main`" with branch protection as well as the script.
 
 ## Deploy 1: publish a browsable site ✅ locally, ⏳ CI
 

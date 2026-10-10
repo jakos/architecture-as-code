@@ -22,5 +22,7 @@ Using Docker instead of Podman: copy `.env.example` to `.env` and set `CONTAINER
 ## Docs
 
 - [Workflow](docs/workflow.md): edit in repo, browser editor → PR, deploy
+- [Workflow research](docs/research/structurizr-workflows.md): draft options for the browser editor and the branch/PR lifecycle
+- [LikeC4 comparison](docs/research/likec4-comparison.md): draft comparison of LikeC4 with the Structurizr workflow, and a proposed trial
 - [Conventions](docs/conventions.md): Kubernetes properties, layout
 - [Decisions](docs/decisions/)
