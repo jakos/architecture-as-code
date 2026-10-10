@@ -2,6 +2,8 @@
 
 Date: 2026-10-09 · Status: accepted
 
+Amended by [0005](0005-trial-likec4-for-the-editor-path.md) for the LikeC4 trial editor only.
+
 ## Context
 
 Structurizr CLI, Lite and on-premises were consolidated into one tool, "vNext"

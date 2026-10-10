@@ -1,8 +1,8 @@
 # 0005: Trial LikeC4 for the browser editor path, keep Structurizr as the tool of record
 
-Date: 2026-10-10 · Status: proposed
+Date: 2026-10-10 · Status: accepted (owner, 2026-10-10)
 
-Amends (if accepted), for the trial editor only: 0001, in its sentence "One image ... for
+Amends, for the trial editor only: 0001, in its sentence "One image ... for
 validation, local authoring and static-site export"; 0002, in its sentences "Every model
 change is a change to `.dsl` files" and "Structurizr `local` renders the DSL". 0003 and
 0004 stay unchanged.
