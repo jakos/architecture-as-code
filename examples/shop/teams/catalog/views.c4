@@ -1,11 +1,11 @@
 views {
   view CatalogContext of catalog {
-    title 'Catalog context'
+    title 'Catalog / Catalog context'
     include catalog, * <-> catalog
   }
 
   view CatalogContainers of catalog {
-    title 'Catalog containers'
+    title 'Catalog / Catalog containers'
     include *
   }
 }

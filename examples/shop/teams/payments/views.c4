@@ -1,16 +1,16 @@
 views {
   view PaymentsContext of payments {
-    title 'Payments context'
+    title 'Payments / Payments context'
     include payments, * <-> payments
   }
 
   view PaymentsContainers of payments {
-    title 'Payments containers'
+    title 'Payments / Payments containers'
     include *
   }
 
   view PaymentsComponents of payments.paymentApi {
-    title 'Payments components'
+    title 'Payments / Payments components'
     include *
   }
 }

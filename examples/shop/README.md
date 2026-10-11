@@ -35,7 +35,7 @@ teams/<domain>/
   deployment.c4    the team's namespace and instances in prod and staging
   views.c4         the team's context, container and component views
 views/
-  landscape.c4     Landscape
+  index.c4         index (the landscape, start page)
   deployment.c4    ProdDeployment, StagingDeployment
   dynamic/         one dynamic view per file: checkout, payment-retry, order-fulfilment, returns-refunds
 ```
@@ -56,12 +56,19 @@ views/
 
 | Level | Views |
 | --- | --- |
-| Landscape | `Landscape` |
+| Landscape | `index` |
 | System context | `CatalogContext`, `AccountsContext`, `CheckoutContext`, `OrdersContext`, `PaymentsContext`, `FulfilmentContext` |
 | Containers | `CatalogContainers`, `AccountsContainers`, `CheckoutContainers`, `OrdersContainers`, `PaymentsContainers`, `FulfilmentContainers` |
 | Components | `CheckoutComponents` (of `checkout.checkoutApi`), `OrdersComponents` (of `orders.orderApi`), `PaymentsComponents` (of `payments.paymentApi`) |
 | Deployment | `ProdDeployment`, `StagingDeployment` |
 | Dynamic | `CheckoutFlow`, `PaymentFailureRetry` (sequence); `OrderFulfilmentFlow`, `ReturnsRefundsFlow` (diagram) |
+
+The LikeC4 menu groups views into folders by title prefix (`<Team> / <title>`). Each team has
+one folder holding its context, container and component views and the dynamic views it
+leads: Cart and Checkout (`CheckoutFlow`), Payments (`PaymentFailureRetry`), Fulfilment
+(`OrderFulfilmentFlow`) and Orders (`ReturnsRefundsFlow`). `Overview` holds the landscape and
+the two deployment views. The dynamic view files stay in `views/dynamic/` (owned by
+architecture); only their titles name the lead team.
 
 Run `just up` to browse them live on http://127.0.0.1:8080, or `just site` for the static
 site on http://127.0.0.1:8081 (`just down` stops both).
@@ -87,6 +94,10 @@ edit, commit, then `git merge`), or with the editor PoC: `just editor-build`,
 submit each editor's change first. Stop them with `just editor-down`. Check each result with
 `just validate`.
 
+The branch names below are for Flow A. The editor PoC names its branch
+`model/<MODEL_USER>/<date>-<MODEL_SLUG>`, so there use the last part of the listed name as
+`MODEL_SLUG` (for example `add-wishlist`).
+
 ### 1. Two teams editing at once
 
 - Branches: `model/catalog/add-wishlist` and `model/fulfilment/add-label-printer`.
@@ -99,8 +110,8 @@ submit each editor's change first. Stop them with `just editor-down`. Check each
 
 ### 2. Changing a relation between teams
 
-- Branch: `model/payments/checkout-calls-refund-service`.
-- Payments wants checkout to call a new component, `payments.paymentApi.refundService`
+- Branch: `model/payments/checkout-calls-authorisation-service`.
+- Payments wants checkout to call a new component, `payments.paymentApi.authorisationService`
   instead of `payments.paymentApi.paymentController`. The relation
   `checkout.checkoutApi.paymentClient -> payments.paymentApi.paymentController` lives in
   `teams/checkout/model.c4`, because checkout starts the call.

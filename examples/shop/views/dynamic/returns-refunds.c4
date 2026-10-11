@@ -1,6 +1,6 @@
 views {
   dynamic view ReturnsRefundsFlow {
-    title 'Returns and refunds'
+    title 'Orders / Returns and refunds'
     description 'A customer returns goods. After inspection the order is refunded or the return is rejected.'
     variant diagram
 

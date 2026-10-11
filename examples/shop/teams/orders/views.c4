@@ -1,16 +1,16 @@
 views {
   view OrdersContext of orders {
-    title 'Orders context'
+    title 'Orders / Orders context'
     include orders, * <-> orders
   }
 
   view OrdersContainers of orders {
-    title 'Orders containers'
+    title 'Orders / Orders containers'
     include *
   }
 
   view OrdersComponents of orders.orderApi {
-    title 'Orders components'
+    title 'Orders / Orders components'
     include *
   }
 }

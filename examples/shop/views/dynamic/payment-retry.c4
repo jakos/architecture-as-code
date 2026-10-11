@@ -1,6 +1,6 @@
 views {
   dynamic view PaymentFailureRetry {
-    title 'Payment failure and retry'
+    title 'Payments / Payment failure and retry'
     description 'The provider reports a failed payment. Payments retries, and if it gives up the customer is told.'
     variant sequence
 

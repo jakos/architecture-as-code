@@ -39,12 +39,16 @@ Rules:
 A LikeC4 project is a directory with a `likec4.config.json`. All `.c4` files under it form
 one model. Inside a project:
 
-- `shared/`: the specification, the landscape (people, shared systems), external systems and
-  shared deployment nodes.
+- `shared/`: the specification, people, shared and external systems and shared deployment nodes.
 - `teams/<domain>/`: one team's model, its relations, its deployment instances and its views.
   A cross-team relation lives in the team that starts the call. A relation started by a
   person, an external system or the event bus lives in the team of its target.
-- `views/`: cross-team views. `views/dynamic/` holds one dynamic view per file.
+- `views/`: cross-team views, among them the landscape as view `index` (the start page).
+  `views/dynamic/` holds one dynamic view per file.
+- View titles start with a menu folder: `<Team> / <title>` for a team's views and the dynamic
+  views it leads, `Overview / <title>` for cross-team views. LikeC4 builds the menu from `/`
+  in titles and shows only the last segment as the view's title, so that segment must make
+  sense alone.
 
 `.github/CODEOWNERS` assigns the folders: each `teams/<domain>/` to its team, `shared/` and
 `views/` to the architecture owners. `examples/shop/README.md` describes the layout on a

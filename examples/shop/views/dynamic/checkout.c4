@@ -1,10 +1,10 @@
 views {
   dynamic view CheckoutFlow {
-    title 'Checkout flow'
+    title 'Cart and Checkout / Checkout flow'
     description 'A shopper checks out: stock and tax are handled in parallel, guests can create an account, then payment and order follow.'
     variant sequence
 
-    customer -> catalog.storefront 'Clicks Place order'
+    guest -> catalog.storefront 'Clicks Place order'
     catalog.storefront -> checkout.checkoutApi.controller 'Submits checkout'
 
     opt 'Guest creates an account' {

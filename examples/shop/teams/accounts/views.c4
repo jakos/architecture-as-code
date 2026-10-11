@@ -1,11 +1,11 @@
 views {
   view AccountsContext of accounts {
-    title 'Accounts context'
+    title 'Accounts / Accounts context'
     include accounts, * <-> accounts
   }
 
   view AccountsContainers of accounts {
-    title 'Accounts containers'
+    title 'Accounts / Accounts containers'
     include *
   }
 }

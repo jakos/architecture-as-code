@@ -1,6 +1,6 @@
 views {
   dynamic view OrderFulfilmentFlow {
-    title 'Order fulfilment'
+    title 'Fulfilment / Order fulfilment'
     description 'A placed order reaches the warehouse; the ERP and the carrier are updated in parallel.'
     variant diagram
 

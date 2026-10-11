@@ -1,11 +1,11 @@
 views {
   view FulfilmentContext of fulfilment {
-    title 'Fulfilment context'
+    title 'Fulfilment / Fulfilment context'
     include fulfilment, * <-> fulfilment
   }
 
   view FulfilmentContainers of fulfilment {
-    title 'Fulfilment containers'
+    title 'Fulfilment / Fulfilment containers'
     include *
   }
 }

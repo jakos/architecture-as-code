@@ -1,6 +1,6 @@
 views {
-  view Landscape {
-    title 'Landscape'
+  view index {
+    title 'Overview / Landscape'
     description 'All people, internal systems, the event bus and external systems.'
     include *
   }

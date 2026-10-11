@@ -1,11 +1,11 @@
 views {
   deployment view ProdDeployment {
-    title 'Production deployment'
-    include prod.**
+    title 'Overview / Production deployment'
+    include prod.cluster, prod.**
   }
 
   deployment view StagingDeployment {
-    title 'Staging deployment'
-    include staging.**
+    title 'Overview / Staging deployment'
+    include staging.cluster, staging.**
   }
 }
