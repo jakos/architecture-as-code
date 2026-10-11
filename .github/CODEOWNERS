@@ -1,0 +1,10 @@
+# Folder ownership of a LikeC4 project (see docs/conventions.md):
+#   teams/<domain>/   owned by that domain's team
+#   shared/, views/   owned by the architecture owners
+#
+# No rule is active yet: a rule naming a team that does not exist is an error on GitHub.
+# Add one per team once the owners exist, for example:
+#
+# /examples/shop/teams/shop/  @<org>/<team>
+# /examples/shop/shared/      @<org>/<architecture-owners>
+# /examples/shop/views/       @<org>/<architecture-owners>

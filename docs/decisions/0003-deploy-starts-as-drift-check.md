@@ -2,6 +2,9 @@
 
 Date: 2026-10-09 · Status: accepted
 
+Amended by [0006](0006-likec4-is-the-tool-of-record.md): the contract keys are `kubernetes_namespace`, `kubernetes_kind` and
+`kubernetes_name` metadata keys instead of the dotted property names below.
+
 ## Context
 
 "Deploying architecture" means two things: (1) people can browse the current

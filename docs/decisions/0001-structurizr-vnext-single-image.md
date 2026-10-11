@@ -1,6 +1,6 @@
 # 0001: Use the consolidated Structurizr image for everything
 
-Date: 2026-10-09 · Status: accepted
+Date: 2026-10-09 · Status: superseded by [0006](0006-likec4-is-the-tool-of-record.md)
 
 Amended by [0005](0005-trial-likec4-for-the-editor-path.md) for the LikeC4 trial editor only.
 

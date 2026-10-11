@@ -1,0 +1,6 @@
+views {
+  view Landscape {
+    title 'Landscape'
+    include *
+  }
+}

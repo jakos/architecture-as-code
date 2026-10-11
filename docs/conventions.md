@@ -1,24 +1,64 @@
 # Model conventions
 
-## Kubernetes properties on deployment elements
+## Kubernetes metadata on deployment elements
 
-These properties are the contract between the C4 deployment model and the cluster. The
+These metadata keys are the contract between the C4 deployment model and the cluster. The
 drift check (and later, object generation) reads them; diagrams ignore them.
 
-| Property | On | Meaning |
+| Key | On | Meaning |
 | --- | --- | --- |
-| `kubernetes.namespace` | deployment node | Namespace the instances under this node run in. Inherited by children. |
-| `kubernetes.kind` | container instance | `Deployment`, `StatefulSet`, `DaemonSet`, `CronJob` |
-| `kubernetes.name` | container instance | `metadata.name` of the workload |
+| `kubernetes_namespace` | deployment node | Namespace the instances under this node run in. Inherited by children. |
+| `kubernetes_kind` | deployment instance (`instanceOf`) | `Deployment`, `StatefulSet`, `DaemonSet`, `CronJob` |
+| `kubernetes_name` | deployment instance (`instanceOf`) | `metadata.name` of the workload |
+
+```
+shopNamespace = node 'shop' {
+  metadata {
+    kubernetes_namespace 'shop'
+  }
+  api = instanceOf shop.api {
+    metadata {
+      kubernetes_kind 'Deployment'
+      kubernetes_name 'shop-api'
+    }
+  }
+}
+```
+
+The keys use underscores because LikeC4 metadata keys cannot contain a dot
+([ADR 0006](decisions/0006-likec4-is-the-tool-of-record.md)).
 
 Rules:
 
-- A container instance without `kubernetes.name` is not checked (e.g. managed services).
-- Renaming a property is a breaking change for every job that reads it: change the
-  tooling and every workspace in the same PR.
+- A deployment instance without `kubernetes_name` is not checked (e.g. managed services).
+- Renaming a key is a breaking change for every job that reads it: change the tooling and
+  every model in the same PR.
 
 ## Layout
 
-- `examples/<name>/workspace.dsl`: self-contained example workspaces, safe to break.
-- `workspaces/<name>/workspace.dsl`: real workspaces (none yet).
-- One workspace per directory, because Structurizr `local` mode serves a directory.
+A LikeC4 project is a directory with a `likec4.config.json`. All `.c4` files under it form
+one model. Inside a project:
+
+- `shared/`: the specification, the landscape (people, shared systems), external systems and
+  shared deployment nodes.
+- `teams/<domain>/`: one team's model, its relations, its deployment instances and its views.
+  A cross-team relation lives in the team that starts the call.
+- `views/`: cross-team views.
+
+`.github/CODEOWNERS` assigns the folders: each `teams/<domain>/` to its team, `shared/` and
+`views/` to the architecture owners.
+
+Where projects live:
+
+- `examples/<name>/`: example projects, safe to break (`examples/shop`).
+- `workspaces/<name>/`: real models (none yet).
+
+`tools/validate_models.py` finds every directory with a `likec4.config.json` under
+`examples/` and `workspaces/` (skipping `.likec4`, `node_modules` and `build`) and runs
+`likec4 validate` and `likec4 format --check` on it. Run `just validate` for that alone.
+
+## Layout files
+
+Dragging an element in the "Edit" mode of `likec4 start` writes `.likec4/<view>.likec4.snap`
+into the project. Whether to commit or ignore these files is open; it is decided in the
+editor-image task.

@@ -18,7 +18,7 @@ from pathlib import Path
 
 BRANCH_RE = re.compile(r"^model/[a-z0-9][a-z0-9._-]*/\d{4}-\d{2}-\d{2}-[a-z0-9][a-z0-9-]*$")
 BRANCH_REF_PREFIX = "refs/heads/model/"
-TOOLS = ("structurizr", "likec4")
+TOOLS = ("likec4",)
 
 Runner = Callable[..., subprocess.CompletedProcess]
 
@@ -48,17 +48,15 @@ def refspec(branch: str) -> str:
 
 
 def validator_commands(tool: str, path: str) -> list[list[str]]:
-    """Validator invocations for a tool; each runs with the repo root as the working dir
-    except LikeC4's, which run inside the model directory (see validator_cwd)."""
-    if tool == "structurizr":
-        return [["structurizr", "validate", "-w", f"{path.rstrip('/')}/workspace.dsl"]]
+    """Validator invocations for a tool; they run inside the model directory (validator_cwd)."""
     if tool == "likec4":
         return [["likec4", "validate"], ["likec4", "format", "--check"]]
     raise SubmitError(f"unknown tool '{tool}' (expected one of: {', '.join(TOOLS)})")
 
 
-def validator_cwd(tool: str, repo: Path, path: str) -> Path:
-    return repo / path if tool == "likec4" else repo
+def validator_cwd(repo: Path, path: str) -> Path:
+    """LikeC4 validates the project in its working directory: the model directory."""
+    return repo / path
 
 
 def pr_command(branch: str, title: str) -> str:
@@ -94,9 +92,7 @@ def submit(tool: str, path: str, repo: Path, message: str, run: Runner = subproc
 
     for cmd in validator_commands(tool, path):
         print(f"$ {shlex.join(cmd)}")
-        proc = run(
-            cmd, cwd=validator_cwd(tool, repo, path), capture_output=True, text=True, check=False
-        )
+        proc = run(cmd, cwd=validator_cwd(repo, path), capture_output=True, text=True, check=False)
         if proc.returncode != 0:
             raise _fail(proc, shlex.join(cmd))
 

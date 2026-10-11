@@ -64,21 +64,16 @@ def test_refspec_targets_model_ref_only():
         submit.refspec("main")
 
 
-def test_validator_command_structurizr():
-    cmds = submit.validator_commands("structurizr", "examples/shop")
-    assert cmds == [["structurizr", "validate", "-w", "examples/shop/workspace.dsl"]]
-
-
 def test_validator_commands_likec4():
-    cmds = submit.validator_commands("likec4", "trial/likec4/shop")
+    cmds = submit.validator_commands("likec4", "examples/shop")
     assert cmds == [["likec4", "validate"], ["likec4", "format", "--check"]]
-    assert submit.validator_cwd("likec4", REPO, "trial/likec4/shop") == REPO / "trial/likec4/shop"
+    assert submit.validator_cwd(REPO, "examples/shop") == REPO / "examples/shop"
 
 
 def test_validation_failure_stops_before_commit(capsys):
     run = FakeRun(fail="format --check")
     with pytest.raises(submit.SubmitError, match="validator said no"):
-        submit.submit("likec4", "trial/likec4/shop", REPO, "msg", run=run)
+        submit.submit("likec4", "examples/shop", REPO, "msg", run=run)
     assert "add" not in run.git_verbs()
     assert "commit" not in run.git_verbs()
     assert "push" not in run.git_verbs()
@@ -87,21 +82,21 @@ def test_validation_failure_stops_before_commit(capsys):
 def test_empty_change_is_refused():
     run = FakeRun(porcelain="")
     with pytest.raises(submit.SubmitError, match="nothing to submit"):
-        submit.submit("structurizr", "examples/shop", REPO, "msg", run=run)
+        submit.submit("likec4", "examples/shop", REPO, "msg", run=run)
     assert "commit" not in run.git_verbs()
-    assert ["structurizr", "validate", "-w", "examples/shop/workspace.dsl"] not in run.calls
+    assert ["likec4", "validate"] not in run.calls
 
 
 def test_refuses_to_submit_from_main_without_touching_git_state():
     run = FakeRun(branch="main")
     with pytest.raises(submit.SubmitError, match="main"):
-        submit.submit("structurizr", "examples/shop", REPO, "msg", run=run)
+        submit.submit("likec4", "examples/shop", REPO, "msg", run=run)
     assert run.git_verbs() == ["rev-parse"]
 
 
 def test_pr_command_is_printed_not_run(capsys):
     run = FakeRun()
-    submit.submit("structurizr", "examples/shop", REPO, "Add notifications", run=run)
+    submit.submit("likec4", "examples/shop", REPO, "Add notifications", run=run)
     out = capsys.readouterr().out
     assert f"gh pr create --base main --head {BRANCH} --title 'Add notifications'" in out
     assert "PR not opened" in out
@@ -112,7 +107,7 @@ def test_pr_command_is_printed_not_run(capsys):
 
 def test_commit_is_limited_to_the_model_path():
     run = FakeRun()
-    submit.submit("structurizr", "examples/shop", REPO, "msg", run=run)
+    submit.submit("likec4", "examples/shop", REPO, "msg", run=run)
     commit = next(c for c in run.calls if c[0] == "git" and "commit" in c)
     assert commit[-2:] == ["--", "examples/shop"]
 
@@ -144,7 +139,7 @@ def test_staged_file_outside_path_is_not_committed(tmp_path):
     real_run = subprocess.run
 
     def run(cmd, **kwargs):
-        if cmd[0] in ("structurizr", "likec4"):  # the validator is not under test here
+        if cmd[0] == "likec4":  # the validator is not under test here
             return subprocess.CompletedProcess(cmd, 0, "", "")
         return real_run(cmd, **kwargs)
 

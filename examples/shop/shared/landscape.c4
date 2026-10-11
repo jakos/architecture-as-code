@@ -1,0 +1,5 @@
+model {
+  customer = person 'Customer' {
+    description 'Buys products online.'
+  }
+}

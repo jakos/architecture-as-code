@@ -1,6 +1,6 @@
 # 0004: Browse the architecture as a static site, not the Structurizr server
 
-Date: 2026-10-09 · Status: accepted (revisit when there are many viewers)
+Date: 2026-10-09 · Status: superseded by [0006](0006-likec4-is-the-tool-of-record.md)
 
 ## Context
 

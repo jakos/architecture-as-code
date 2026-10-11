@@ -1,0 +1,8 @@
+deployment {
+  localKind = environment 'local-kind' {
+    cluster = node 'kind cluster' {
+      description 'Local Kubernetes in containers.'
+      technology 'kind'
+    }
+  }
+}

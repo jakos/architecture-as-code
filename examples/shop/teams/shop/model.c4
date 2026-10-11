@@ -1,0 +1,42 @@
+model {
+  shop = softwareSystem 'Shop' {
+    description 'Lets customers browse and order products.'
+
+    web = container 'Web Frontend' {
+      description 'Serves the shop UI.'
+      technology 'TypeScript, Next.js'
+      style {
+        shape browser
+      }
+    }
+    api = container 'Order API' {
+      description 'Accepts and tracks orders.'
+      technology 'Python, FastAPI'
+    }
+    worker = container 'Fulfilment Worker' {
+      description 'Consumes order events and ships orders.'
+      technology 'Python'
+    }
+    db = container 'Order Database' {
+      description 'Stores orders.'
+      technology 'PostgreSQL'
+      style {
+        shape storage
+      }
+    }
+    events = container 'Order Events' {
+      description 'Order lifecycle events.'
+      technology 'Kafka topic'
+      style {
+        shape queue
+      }
+    }
+  }
+
+  customer -> shop.web 'Browses and orders using' 'HTTPS'
+  shop.web -> shop.api 'Places orders via' 'JSON/HTTPS'
+  shop.api -> shop.db 'Reads and writes' 'SQL'
+  shop.api -> shop.events 'Publishes OrderPlaced to' 'Kafka'
+  shop.worker -> shop.events 'Consumes OrderPlaced from' 'Kafka'
+  shop.api -> payments 'Charges cards via' 'HTTPS'
+}

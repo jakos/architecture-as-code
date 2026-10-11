@@ -4,6 +4,8 @@ Date: 2026-10-09 · Status: accepted
 
 Amended by [0005](0005-trial-likec4-for-the-editor-path.md) for the LikeC4 trial editor only.
 
+Amended by [0006](0006-likec4-is-the-tool-of-record.md): the model files are `.c4` files, read ".dsl" in this ADR as ".c4".
+
 ## Context
 
 There are two ways to edit: directly in the repo (Flow A) and through a browser editor

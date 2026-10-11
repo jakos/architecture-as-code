@@ -21,13 +21,13 @@ def test_editor_command_defaults_to_code_server():
 def test_editor_command_web_runs_web_editor():
     env = {
         "EDITOR_UI": "web",
-        "MODEL_PATH": "trial/likec4/shop",
+        "MODEL_PATH": "examples/shop",
         "RENDER_URL": "http://127.0.0.1:8095",
     }
     cmd = entrypoint.editor_command(env, MODEL_DIR)
     assert cmd[:2] == ["python3", "/usr/local/lib/poc/web_editor.py"]
     assert cmd[cmd.index("--repo") + 1] == str(MODEL_DIR)
-    assert cmd[cmd.index("--path") + 1] == "trial/likec4/shop"
+    assert cmd[cmd.index("--path") + 1] == "examples/shop"
     assert cmd[cmd.index("--render-url") + 1] == "http://127.0.0.1:8095"
     assert "code-server" not in cmd
 

@@ -22,7 +22,7 @@ RUN ln -s ../lib/node_modules/likec4/bin/likec4.mjs /usr/local/bin/likec4 \
     && mkdir -p /usr/local/lib/node_modules/likec4/node_modules/.vite \
     && chown -R coder /usr/local/lib/node_modules/likec4/node_modules/.vite \
     && printf '%s\n' '#!/bin/sh' \
-      'exec python3 /usr/local/lib/poc/submit.py --tool likec4 --path trial/likec4/shop --repo /home/coder/model "$@"' \
+      'exec python3 /usr/local/lib/poc/submit.py --tool likec4 --path examples/shop --repo /home/coder/model "$@"' \
       > /usr/local/bin/submit \
     && chmod 0755 /usr/local/bin/submit
 
@@ -32,6 +32,6 @@ USER coder
 RUN code-server --install-extension likec4.likec4-vscode@1.59.4
 
 # No password or token here: PASSWORD comes from the environment at run time.
-ENV RENDERER=likec4 MODEL_PATH=trial/likec4/shop
+ENV RENDERER=likec4 MODEL_PATH=examples/shop
 EXPOSE 8080 5173
 ENTRYPOINT ["python3", "/usr/local/lib/poc/entrypoint.py"]

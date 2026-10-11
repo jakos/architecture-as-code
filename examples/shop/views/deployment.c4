@@ -1,0 +1,6 @@
+views {
+  deployment view LocalDeployment {
+    title 'Local deployment'
+    include localKind.**
+  }
+}

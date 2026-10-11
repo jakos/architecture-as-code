@@ -15,7 +15,7 @@ import submit
 import web_editor
 
 PASSWORD = "s3cret"
-MODEL_PATH = "trial/likec4/shop"
+MODEL_PATH = "examples/shop"
 
 
 def basic(password: str = PASSWORD) -> str:
@@ -79,7 +79,7 @@ def service(model_dir):
         calls.append(args)
         print("pushed model/ada/2026-10-10-x to origin")
 
-    svc = Service(model_dir.parents[2], fake_submit)
+    svc = Service(model_dir.parents[1], fake_submit)
     svc.calls = calls
     yield svc
     svc.stop()
@@ -171,14 +171,14 @@ def test_rejects_cross_origin_post(service):
 
 
 def test_refuses_to_start_without_password(model_dir):
-    editor = web_editor.Editor(model_dir.parents[2], MODEL_PATH, "http://x")
+    editor = web_editor.Editor(model_dir.parents[1], MODEL_PATH, "http://x")
     with pytest.raises(ValueError, match="PASSWORD"):
         web_editor.make_server(editor, "", "127.0.0.1", 0)
 
 
 def test_main_exits_1_without_password(model_dir, monkeypatch, capsys):
     monkeypatch.delenv("PASSWORD", raising=False)
-    argv = ["--repo", str(model_dir.parents[2]), "--path", MODEL_PATH, "--render-url", "http://x"]
+    argv = ["--repo", str(model_dir.parents[1]), "--path", MODEL_PATH, "--render-url", "http://x"]
     assert web_editor.main(argv) == 1
     assert "PASSWORD" in capsys.readouterr().err
 
@@ -188,14 +188,14 @@ def test_submit_endpoint_calls_submit_with_likec4_and_model_path(service, model_
     assert status == 200
     assert json.loads(data)["ok"] is True
     assert "pushed model/ada" in json.loads(data)["output"]
-    assert service.calls == [("likec4", MODEL_PATH, model_dir.parents[2], "add notifications")]
+    assert service.calls == [("likec4", MODEL_PATH, model_dir.parents[1], "add notifications")]
 
 
 def test_submit_endpoint_reports_submit_error(model_dir):
     def refuse(*args):
         raise submit.SubmitError("refusing to submit from 'main'")
 
-    svc = Service(model_dir.parents[2], refuse)
+    svc = Service(model_dir.parents[1], refuse)
     try:
         status, data = svc.call("POST", "/api/submit", {"message": "x"})
     finally:

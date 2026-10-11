@@ -4,12 +4,12 @@ Environment (nothing is baked into the image):
   REPO_URL        what to clone (the PoC passes the local bare remote)
   MODEL_USER      who is editing; used in the branch name and as the git author
   MODEL_SLUG      short description of the change; used in the branch name
-  RENDERER        structurizr | likec4
-  MODEL_PATH      model directory inside the clone (examples/shop or trial/likec4/shop)
+  RENDERER        likec4
+  MODEL_PATH      model directory inside the clone (for example examples/shop)
   PASSWORD        login password of the editor UI (code-server, or web_editor.py in web mode)
   EDITOR_UI       code-server (default) | web (tools/web_editor.py: text editor + live diagram)
   RENDER_URL      web mode: URL of the renderer as the browser reaches it (iframe source)
-  HMR_PORT        likec4 only: fixed port of the dev server's HMR websocket (default: automatic)
+  HMR_PORT        fixed port of the dev server's HMR websocket (default: automatic)
   SPARSE_EXCLUDE  optional, space-separated paths left out of the checkout
   MODEL_DIR       clone location (default /home/coder/model, a bind mount)
 
@@ -25,8 +25,7 @@ from collections.abc import Mapping
 from pathlib import Path
 
 CODE_SERVER_PORT = 8080
-RENDER_PORT = 8081  # structurizr local; likec4 start uses 5173 and is mapped by compose
-LIKEC4_PORT = 5173
+LIKEC4_PORT = 5173  # `likec4 start`; compose maps it
 EDITOR_UIS = ("code-server", "web")
 WEB_EDITOR = "/usr/local/lib/poc/web_editor.py"
 SLUG_RE = re.compile(r"^[a-z0-9][a-z0-9-]*$")
@@ -92,14 +91,6 @@ def prepare_clone(env: Mapping[str, str], today: datetime.date) -> tuple[Path, s
 def renderer_command(
     renderer: str, workdir: Path, env: Mapping[str, str] | None = None
 ) -> tuple[list[str], dict[str, str]]:
-    if renderer == "structurizr":
-        cmd = ["structurizr", "local", str(workdir)]  # local takes its data dir as an argument
-        extra = {
-            "PORT": str(RENDER_PORT),
-            "STRUCTURIZR_EDITABLE": "false",
-            "STRUCTURIZR_AUTOREFRESHINTERVAL": "2000",
-        }
-        return cmd, extra
     if renderer == "likec4":
         cmd = [
             "likec4", "start", "--listen", "0.0.0.0", "--port", str(LIKEC4_PORT), "--no-use-dot",
@@ -108,7 +99,7 @@ def renderer_command(
         if hmr_port:
             cmd += ["--hmr-port", hmr_port]
         return cmd, {"CHOKIDAR_USEPOLLING": "true"}
-    raise SetupError(f"RENDERER '{renderer}' must be structurizr or likec4")
+    raise SetupError(f"RENDERER '{renderer}' must be likec4")
 
 
 def editor_ui(env: Mapping[str, str]) -> str:
@@ -142,8 +133,8 @@ def main() -> int:
         require(env, "PASSWORD")
         renderer = require(env, "RENDERER")
         model_path = require(env, "MODEL_PATH")
-        if renderer not in ("structurizr", "likec4"):
-            raise SetupError(f"RENDERER '{renderer}' must be structurizr or likec4")
+        if renderer != "likec4":
+            raise SetupError(f"RENDERER '{renderer}' must be likec4")
         editor_ui(env)
         model_dir, branch = prepare_clone(env, datetime.date.today())
         command = editor_command(env, model_dir)

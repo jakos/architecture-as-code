@@ -36,10 +36,10 @@ always_run = true
 stages = ["pre-push"]
 
 [[repos.hooks]]
-id = "structurizr-validate"
-name = "structurizr validate"
+id = "likec4-validate"
+name = "likec4 validate"
 language = "system"
-entry = "uv run --locked python tools/validate_workspaces.py"
+entry = "uv run --locked python tools/validate_models.py"
 pass_filenames = false
-files = '\.dsl$'
+files = '(\.c4|likec4\.config\.json)$'
 stages = ["pre-push"]

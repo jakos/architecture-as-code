@@ -1,0 +1,6 @@
+model {
+  payments = softwareSystem 'Payment Provider' {
+    #external
+    description 'External card payments.'
+  }
+}

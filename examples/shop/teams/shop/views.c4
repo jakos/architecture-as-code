@@ -1,0 +1,11 @@
+views {
+  view SystemContext of shop {
+    title 'System context'
+    include *
+  }
+
+  view Containers of shop {
+    title 'Containers'
+    include *
+  }
+}

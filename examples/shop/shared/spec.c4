@@ -1,0 +1,8 @@
+specification {
+  element person
+  element softwareSystem
+  element container
+  deploymentNode environment
+  deploymentNode node
+  tag external
+}
