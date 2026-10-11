@@ -1,0 +1,60 @@
+deployment {
+  extend prod.cluster {
+    paymentsNs = node 'payments' {
+      technology 'Kubernetes Namespace'
+      metadata {
+        kubernetes_namespace 'payments'
+      }
+
+      paymentApi = instanceOf payments.paymentApi {
+        metadata {
+          kubernetes_kind 'Deployment'
+          kubernetes_name 'payments-payment-api'
+        }
+      }
+
+      webhookReceiver = instanceOf payments.webhookReceiver {
+        metadata {
+          kubernetes_kind 'Deployment'
+          kubernetes_name 'payments-webhook-receiver'
+        }
+      }
+
+      paymentDb = instanceOf payments.paymentDb {
+        metadata {
+          kubernetes_kind 'StatefulSet'
+          kubernetes_name 'payments-payment-db'
+        }
+      }
+    }
+  }
+  extend staging.cluster {
+    paymentsNs = node 'payments' {
+      technology 'Kubernetes Namespace'
+      metadata {
+        kubernetes_namespace 'payments'
+      }
+
+      paymentApi = instanceOf payments.paymentApi {
+        metadata {
+          kubernetes_kind 'Deployment'
+          kubernetes_name 'payments-payment-api'
+        }
+      }
+
+      webhookReceiver = instanceOf payments.webhookReceiver {
+        metadata {
+          kubernetes_kind 'Deployment'
+          kubernetes_name 'payments-webhook-receiver'
+        }
+      }
+
+      paymentDb = instanceOf payments.paymentDb {
+        metadata {
+          kubernetes_kind 'StatefulSet'
+          kubernetes_name 'payments-payment-db'
+        }
+      }
+    }
+  }
+}

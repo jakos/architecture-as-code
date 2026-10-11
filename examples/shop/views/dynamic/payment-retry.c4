@@ -1,0 +1,30 @@
+views {
+  dynamic view PaymentFailureRetry {
+    title 'Payment failure and retry'
+    description 'The provider reports a failed payment. Payments retries, and if it gives up the customer is told.'
+    variant sequence
+
+    paymentProvider -> payments.webhookReceiver 'Sends payment failed webhook'
+    payments.webhookReceiver -> payments.paymentApi.paymentController 'Reports failure'
+    payments.paymentApi.paymentController -> payments.paymentApi.retryScheduler 'Schedules retries'
+
+    loop 'Up to 3 retries' {
+      payments.paymentApi.retryScheduler -> payments.paymentApi.providerAdapter 'Retries charge'
+      payments.paymentApi.providerAdapter -> paymentProvider 'Charge attempt'
+    }
+
+    alt {
+      when 'Retry succeeded' {
+        payments.paymentApi.paymentController -> payments.paymentDb 'Records payment as paid'
+      }
+      else {
+        payments.paymentApi.paymentController -> payments.paymentApi.eventPublisher 'Gives up'
+        payments.paymentApi.eventPublisher -> eventBus.broker 'Publishes PaymentFailed'
+        orders.orderApi.orderService <- eventBus.broker 'PaymentFailed'
+        orders.orderApi.orderService -> orders.orderApi.notificationSender 'Notifies customer'
+        orders.orderApi.notificationSender -> messaging 'Sends payment failed message'
+        messaging -> customer 'Sends email'
+      }
+    }
+  }
+}

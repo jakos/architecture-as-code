@@ -1,0 +1,53 @@
+model {
+  checkout = softwareSystem 'Cart and Checkout' {
+    description 'Holds the shopping cart and turns it into an order.'
+
+    cartApi = container 'Cart API' {
+      description 'Adds and removes cart items.'
+      technology 'Python, FastAPI'
+    }
+    checkoutApi = container 'Checkout API' {
+      description 'Prices the cart, takes payment and places the order.'
+      technology 'Python, FastAPI'
+
+      controller = component 'Checkout Controller' {
+        description 'Receives the checkout request and drives the steps.'
+      }
+      cartService = component 'Cart Service' {
+        description 'Reads the cart and its items.'
+      }
+      pricingClient = component 'Pricing Client' {
+        description 'Gets prices, reserves stock and calculates tax.'
+      }
+      paymentClient = component 'Payment Client' {
+        description 'Asks the payments team to authorise payment.'
+      }
+      orderClient = component 'Order Client' {
+        description 'Asks the orders team to create the order.'
+      }
+      accountClient = component 'Account Client' {
+        description 'Creates accounts for guests who ask for one.'
+      }
+    }
+    cartStore = container 'Cart Store' {
+      description 'Keeps carts until they are ordered.'
+      technology 'Redis'
+      style {
+        shape storage
+      }
+    }
+  }
+
+  checkout.cartApi -> checkout.cartStore 'Reads and writes carts in' 'RESP'
+  checkout.checkoutApi.controller -> checkout.checkoutApi.cartService 'Reads cart via'
+  checkout.checkoutApi.controller -> checkout.checkoutApi.pricingClient 'Prices cart via'
+  checkout.checkoutApi.controller -> checkout.checkoutApi.paymentClient 'Takes payment via'
+  checkout.checkoutApi.controller -> checkout.checkoutApi.orderClient 'Places order via'
+  checkout.checkoutApi.controller -> checkout.checkoutApi.accountClient 'Creates account via'
+  checkout.checkoutApi.cartService -> checkout.cartStore 'Reads carts from' 'RESP'
+  checkout.checkoutApi.pricingClient -> catalog.productApi 'Gets prices and reserves stock at' 'JSON/HTTPS'
+  checkout.checkoutApi.pricingClient -> taxService 'Calculates tax with' 'HTTPS'
+  checkout.checkoutApi.paymentClient -> payments.paymentApi.paymentController 'Authorises payment at' 'JSON/HTTPS'
+  checkout.checkoutApi.orderClient -> orders.orderApi.orderController 'Places order at' 'JSON/HTTPS'
+  checkout.checkoutApi.accountClient -> accounts.accountApi 'Creates account at' 'JSON/HTTPS'
+}

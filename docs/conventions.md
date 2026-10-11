@@ -42,11 +42,13 @@ one model. Inside a project:
 - `shared/`: the specification, the landscape (people, shared systems), external systems and
   shared deployment nodes.
 - `teams/<domain>/`: one team's model, its relations, its deployment instances and its views.
-  A cross-team relation lives in the team that starts the call.
-- `views/`: cross-team views.
+  A cross-team relation lives in the team that starts the call. A relation started by a
+  person, an external system or the event bus lives in the team of its target.
+- `views/`: cross-team views. `views/dynamic/` holds one dynamic view per file.
 
 `.github/CODEOWNERS` assigns the folders: each `teams/<domain>/` to its team, `shared/` and
-`views/` to the architecture owners.
+`views/` to the architecture owners. `examples/shop/README.md` describes the layout on a
+six-team example, and `examples/shop/CODEOWNERS` shows example rules.
 
 Where projects live:
 

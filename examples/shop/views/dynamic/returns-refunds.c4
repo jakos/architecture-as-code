@@ -1,0 +1,28 @@
+views {
+  dynamic view ReturnsRefundsFlow {
+    title 'Returns and refunds'
+    description 'A customer returns goods. After inspection the order is refunded or the return is rejected.'
+    variant diagram
+
+    customer -> orders.orderApi.orderController 'Requests a return'
+    orders.orderApi.orderController -> orders.orderApi.returnHandler 'Registers return'
+    orders.orderApi.returnHandler -> orders.orderApi.eventPublisher 'Emits ReturnRequested'
+    orders.orderApi.eventPublisher -> eventBus.broker 'ReturnRequested'
+    fulfilment.fulfilmentService <- eventBus.broker 'ReturnRequested'
+    warehouseWorker -> fulfilment.warehouseApp 'Inspects returned goods'
+    fulfilment.warehouseApp -> fulfilment.fulfilmentService 'Sends inspection result'
+    fulfilment.fulfilmentService -> orders.orderApi.returnHandler 'Reports inspection result'
+
+    alt {
+      when 'Inspection passed' {
+        orders.orderApi.returnHandler -> payments.paymentApi.refundService 'Requests refund'
+        payments.paymentApi.refundService -> payments.paymentApi.providerAdapter 'Refunds card'
+        payments.paymentApi.providerAdapter -> paymentProvider 'Refund request'
+      }
+      else {
+        orders.orderApi.returnHandler -> orders.orderApi.notificationSender 'Rejects return'
+        orders.orderApi.notificationSender -> messaging 'Sends rejection message'
+      }
+    }
+  }
+}

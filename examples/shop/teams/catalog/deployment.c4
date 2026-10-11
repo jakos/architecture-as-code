@@ -1,0 +1,88 @@
+deployment {
+  extend prod.cluster {
+    catalogNs = node 'catalog' {
+      technology 'Kubernetes Namespace'
+      metadata {
+        kubernetes_namespace 'catalog'
+      }
+
+      storefront = instanceOf catalog.storefront {
+        metadata {
+          kubernetes_kind 'Deployment'
+          kubernetes_name 'catalog-storefront'
+        }
+      }
+
+      merchantPortal = instanceOf catalog.merchantPortal {
+        metadata {
+          kubernetes_kind 'Deployment'
+          kubernetes_name 'catalog-merchant-portal'
+        }
+      }
+
+      productApi = instanceOf catalog.productApi {
+        metadata {
+          kubernetes_kind 'Deployment'
+          kubernetes_name 'catalog-product-api'
+        }
+      }
+
+      productDb = instanceOf catalog.productDb {
+        metadata {
+          kubernetes_kind 'StatefulSet'
+          kubernetes_name 'catalog-product-db'
+        }
+      }
+
+      searchIndex = instanceOf catalog.searchIndex {
+        metadata {
+          kubernetes_kind 'StatefulSet'
+          kubernetes_name 'catalog-search-index'
+        }
+      }
+    }
+  }
+  extend staging.cluster {
+    catalogNs = node 'catalog' {
+      technology 'Kubernetes Namespace'
+      metadata {
+        kubernetes_namespace 'catalog'
+      }
+
+      storefront = instanceOf catalog.storefront {
+        metadata {
+          kubernetes_kind 'Deployment'
+          kubernetes_name 'catalog-storefront'
+        }
+      }
+
+      merchantPortal = instanceOf catalog.merchantPortal {
+        metadata {
+          kubernetes_kind 'Deployment'
+          kubernetes_name 'catalog-merchant-portal'
+        }
+      }
+
+      productApi = instanceOf catalog.productApi {
+        metadata {
+          kubernetes_kind 'Deployment'
+          kubernetes_name 'catalog-product-api'
+        }
+      }
+
+      productDb = instanceOf catalog.productDb {
+        metadata {
+          kubernetes_kind 'StatefulSet'
+          kubernetes_name 'catalog-product-db'
+        }
+      }
+
+      searchIndex = instanceOf catalog.searchIndex {
+        metadata {
+          kubernetes_kind 'StatefulSet'
+          kubernetes_name 'catalog-search-index'
+        }
+      }
+    }
+  }
+}

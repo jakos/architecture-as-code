@@ -1,6 +1,46 @@
 model {
-  payments = softwareSystem 'Payment Provider' {
+  paymentProvider = softwareSystem 'Payment Provider' {
     #external
     description 'External card payments.'
+    style {
+      color muted
+    }
   }
+  shippingCarriers = softwareSystem 'Shipping Carriers' {
+    #external
+    description 'External parcel carriers that collect and deliver orders.'
+    style {
+      color muted
+    }
+  }
+  erp = softwareSystem 'ERP' {
+    #external
+    description 'Back-office system for stock levels and accounting.'
+    style {
+      color muted
+    }
+  }
+  messaging = softwareSystem 'Messaging Gateway' {
+    #external
+    description 'Sends email and SMS to customers.'
+    style {
+      color muted
+    }
+  }
+  identityProvider = softwareSystem 'Identity Provider' {
+    #external
+    description 'External sign-in and single sign-on.'
+    style {
+      color muted
+    }
+  }
+  taxService = softwareSystem 'Tax Service' {
+    #external
+    description 'External tax rate calculation.'
+    style {
+      color muted
+    }
+  }
+
+  messaging -> customer 'Sends emails and texts to' 'Email, SMS'
 }

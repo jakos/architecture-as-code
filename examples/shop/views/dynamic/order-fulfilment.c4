@@ -1,0 +1,18 @@
+views {
+  dynamic view OrderFulfilmentFlow {
+    title 'Order fulfilment'
+    description 'A placed order reaches the warehouse; the ERP and the carrier are updated in parallel.'
+    variant diagram
+
+    orders.orderApi.eventPublisher -> eventBus.broker 'OrderPlaced'
+    fulfilment.fulfilmentService <- eventBus.broker 'OrderPlaced'
+    fulfilment.fulfilmentService -> fulfilment.fulfilmentDb 'Creates pick list'
+    warehouseWorker -> fulfilment.warehouseApp 'Picks and packs'
+    fulfilment.warehouseApp -> fulfilment.fulfilmentService 'Confirms packed'
+
+    parallel {
+      fulfilment.fulfilmentService -> erp 'Updates stock'
+      fulfilment.fulfilmentService -> shippingCarriers 'Books shipment'
+    }
+  }
+}

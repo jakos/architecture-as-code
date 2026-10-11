@@ -1,0 +1,16 @@
+views {
+  view OrdersContext of orders {
+    title 'Orders context'
+    include orders, * <-> orders
+  }
+
+  view OrdersContainers of orders {
+    title 'Orders containers'
+    include *
+  }
+
+  view OrdersComponents of orders.orderApi {
+    title 'Orders components'
+    include *
+  }
+}

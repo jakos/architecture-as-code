@@ -1,0 +1,46 @@
+deployment {
+  extend prod.cluster {
+    ordersNs = node 'orders' {
+      technology 'Kubernetes Namespace'
+      metadata {
+        kubernetes_namespace 'orders'
+      }
+
+      orderApi = instanceOf orders.orderApi {
+        metadata {
+          kubernetes_kind 'Deployment'
+          kubernetes_name 'orders-order-api'
+        }
+      }
+
+      orderDb = instanceOf orders.orderDb {
+        metadata {
+          kubernetes_kind 'StatefulSet'
+          kubernetes_name 'orders-order-db'
+        }
+      }
+    }
+  }
+  extend staging.cluster {
+    ordersNs = node 'orders' {
+      technology 'Kubernetes Namespace'
+      metadata {
+        kubernetes_namespace 'orders'
+      }
+
+      orderApi = instanceOf orders.orderApi {
+        metadata {
+          kubernetes_kind 'Deployment'
+          kubernetes_name 'orders-order-api'
+        }
+      }
+
+      orderDb = instanceOf orders.orderDb {
+        metadata {
+          kubernetes_kind 'StatefulSet'
+          kubernetes_name 'orders-order-db'
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,11 @@
+views {
+  view CatalogContext of catalog {
+    title 'Catalog context'
+    include catalog, * <-> catalog
+  }
+
+  view CatalogContainers of catalog {
+    title 'Catalog containers'
+    include *
+  }
+}

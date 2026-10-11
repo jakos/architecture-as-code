@@ -1,8 +1,16 @@
 specification {
-  element person
+  element person {
+    style {
+      shape person
+    }
+  }
   element softwareSystem
   element container
+  element component
   deploymentNode environment
   deploymentNode node
   tag external
+  relationship async {
+    line dashed
+  }
 }

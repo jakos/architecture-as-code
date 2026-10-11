@@ -1,0 +1,16 @@
+views {
+  view CheckoutContext of checkout {
+    title 'Cart and Checkout context'
+    include checkout, * <-> checkout
+  }
+
+  view CheckoutContainers of checkout {
+    title 'Cart and Checkout containers'
+    include *
+  }
+
+  view CheckoutComponents of checkout.checkoutApi {
+    title 'Cart and Checkout components'
+    include *
+  }
+}

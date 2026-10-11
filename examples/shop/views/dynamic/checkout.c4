@@ -1,0 +1,29 @@
+views {
+  dynamic view CheckoutFlow {
+    title 'Checkout flow'
+    description 'A shopper checks out: stock and tax are handled in parallel, guests can create an account, then payment and order follow.'
+    variant sequence
+
+    customer -> catalog.storefront 'Clicks Place order'
+    catalog.storefront -> checkout.checkoutApi.controller 'Submits checkout'
+
+    opt 'Guest creates an account' {
+      checkout.checkoutApi.controller -> checkout.checkoutApi.accountClient 'Offers account creation'
+      checkout.checkoutApi.accountClient -> accounts.accountApi 'Creates account'
+    }
+
+    checkout.checkoutApi.controller -> checkout.checkoutApi.pricingClient 'Prices cart'
+    parallel {
+      checkout.checkoutApi.pricingClient -> catalog.productApi 'Reserves stock'
+      checkout.checkoutApi.pricingClient -> taxService 'Calculates tax'
+    }
+
+    checkout.checkoutApi.controller -> checkout.checkoutApi.paymentClient 'Takes payment'
+    checkout.checkoutApi.paymentClient -> payments.paymentApi.paymentController 'Authorises payment' {
+      navigateTo PaymentFailureRetry
+    }
+
+    checkout.checkoutApi.controller -> checkout.checkoutApi.orderClient 'Places order'
+    checkout.checkoutApi.orderClient -> orders.orderApi.orderController 'Creates order'
+  }
+}

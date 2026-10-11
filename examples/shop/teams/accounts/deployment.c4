@@ -1,0 +1,60 @@
+deployment {
+  extend prod.cluster {
+    accountsNs = node 'accounts' {
+      technology 'Kubernetes Namespace'
+      metadata {
+        kubernetes_namespace 'accounts'
+      }
+
+      accountApi = instanceOf accounts.accountApi {
+        metadata {
+          kubernetes_kind 'Deployment'
+          kubernetes_name 'accounts-account-api'
+        }
+      }
+
+      supportConsole = instanceOf accounts.supportConsole {
+        metadata {
+          kubernetes_kind 'Deployment'
+          kubernetes_name 'accounts-support-console'
+        }
+      }
+
+      accountDb = instanceOf accounts.accountDb {
+        metadata {
+          kubernetes_kind 'StatefulSet'
+          kubernetes_name 'accounts-account-db'
+        }
+      }
+    }
+  }
+  extend staging.cluster {
+    accountsNs = node 'accounts' {
+      technology 'Kubernetes Namespace'
+      metadata {
+        kubernetes_namespace 'accounts'
+      }
+
+      accountApi = instanceOf accounts.accountApi {
+        metadata {
+          kubernetes_kind 'Deployment'
+          kubernetes_name 'accounts-account-api'
+        }
+      }
+
+      supportConsole = instanceOf accounts.supportConsole {
+        metadata {
+          kubernetes_kind 'Deployment'
+          kubernetes_name 'accounts-support-console'
+        }
+      }
+
+      accountDb = instanceOf accounts.accountDb {
+        metadata {
+          kubernetes_kind 'StatefulSet'
+          kubernetes_name 'accounts-account-db'
+        }
+      }
+    }
+  }
+}

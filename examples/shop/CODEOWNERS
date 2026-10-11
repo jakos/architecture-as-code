@@ -1,0 +1,14 @@
+# Example ownership for the shop example project.
+#
+# This file has no effect: GitHub only reads CODEOWNERS from .github/, the repository root
+# or docs/. It shows how .github/CODEOWNERS would look if this project were a real model.
+# The @shop-example/... teams are fictional.
+
+/examples/shop/teams/catalog/     @shop-example/team-catalog
+/examples/shop/teams/accounts/    @shop-example/team-accounts
+/examples/shop/teams/checkout/    @shop-example/team-checkout
+/examples/shop/teams/orders/      @shop-example/team-orders
+/examples/shop/teams/payments/    @shop-example/team-payments
+/examples/shop/teams/fulfilment/  @shop-example/team-fulfilment
+/examples/shop/shared/            @shop-example/architecture
+/examples/shop/views/             @shop-example/architecture

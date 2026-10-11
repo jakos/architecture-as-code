@@ -1,6 +1,11 @@
 views {
-  deployment view LocalDeployment {
-    title 'Local deployment'
-    include localKind.**
+  deployment view ProdDeployment {
+    title 'Production deployment'
+    include prod.**
+  }
+
+  deployment view StagingDeployment {
+    title 'Staging deployment'
+    include staging.**
   }
 }

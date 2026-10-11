@@ -1,0 +1,49 @@
+model {
+  payments = softwareSystem 'Payments' {
+    description 'Card authorisation, retries and refunds.'
+
+    paymentApi = container 'Payment API' {
+      description 'Authorises payments, retries failures and issues refunds.'
+      technology 'Python, FastAPI'
+
+      paymentController = component 'Payment Controller' {
+        description 'HTTP entry point for payments.'
+      }
+      retryScheduler = component 'Retry Scheduler' {
+        description 'Schedules retries of failed payments.'
+      }
+      providerAdapter = component 'Provider Adapter' {
+        description 'Talks to the payment provider.'
+      }
+      refundService = component 'Refund Service' {
+        description 'Refunds captured payments.'
+      }
+      eventPublisher = component 'Payment Event Publisher' {
+        description 'Publishes PaymentFailed and Refunded.'
+      }
+    }
+    webhookReceiver = container 'Webhook Receiver' {
+      description 'Receives payment results from the provider.'
+      technology 'Python, FastAPI'
+    }
+    paymentDb = container 'Payment Database' {
+      description 'Stores payments, attempts and refunds.'
+      technology 'PostgreSQL'
+      style {
+        shape storage
+      }
+    }
+  }
+
+  paymentProvider -> payments.webhookReceiver 'Sends payment results to' 'HTTPS webhook'
+  payments.webhookReceiver -> payments.paymentApi.paymentController 'Reports payment results to' 'JSON/HTTPS'
+  payments.paymentApi.paymentController -> payments.paymentApi.retryScheduler 'Schedules retries via'
+  payments.paymentApi.paymentController -> payments.paymentApi.providerAdapter 'Charges cards via'
+  payments.paymentApi.paymentController -> payments.paymentApi.eventPublisher 'Publishes events via'
+  payments.paymentApi.paymentController -> payments.paymentDb 'Reads and writes' 'SQL'
+  payments.paymentApi.retryScheduler -> payments.paymentApi.providerAdapter 'Retries charges via'
+  payments.paymentApi.refundService -> payments.paymentApi.providerAdapter 'Refunds cards via'
+  payments.paymentApi.refundService -> payments.paymentApi.eventPublisher 'Publishes Refunded via'
+  payments.paymentApi.providerAdapter -> paymentProvider 'Charges and refunds cards at' 'HTTPS'
+  payments.paymentApi.eventPublisher -[async]-> eventBus.broker 'Publishes PaymentFailed and Refunded to' 'Kafka'
+}

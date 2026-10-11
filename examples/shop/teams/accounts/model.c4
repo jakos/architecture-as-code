@@ -1,0 +1,29 @@
+model {
+  accounts = softwareSystem 'Accounts' {
+    description 'Customer profiles, sign-in and the support tooling around them.'
+
+    accountApi = container 'Account API' {
+      description 'Creates and reads accounts and delegates sign-in.'
+      technology 'Python, FastAPI'
+    }
+    supportConsole = container 'Support Console' {
+      description 'Lets support agents look up and fix accounts.'
+      technology 'TypeScript, React'
+      style {
+        shape browser
+      }
+    }
+    accountDb = container 'Account Database' {
+      description 'Stores customer profiles.'
+      technology 'PostgreSQL'
+      style {
+        shape storage
+      }
+    }
+  }
+
+  supportAgent -> accounts.supportConsole 'Looks up accounts using' 'HTTPS'
+  accounts.supportConsole -> accounts.accountApi 'Reads and updates accounts via' 'JSON/HTTPS'
+  accounts.accountApi -> accounts.accountDb 'Reads and writes' 'SQL'
+  accounts.accountApi -> identityProvider 'Delegates sign-in to' 'OIDC'
+}

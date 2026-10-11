@@ -1,0 +1,13 @@
+model {
+  eventBus = softwareSystem 'Event Bus' {
+    description 'Shared platform that carries domain events between teams. Owned by the architecture owners.'
+
+    broker = container 'Event Broker' {
+      description 'Topics for product, order, payment and return events.'
+      technology 'Kafka'
+      style {
+        shape queue
+      }
+    }
+  }
+}

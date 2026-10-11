@@ -1,0 +1,16 @@
+views {
+  view PaymentsContext of payments {
+    title 'Payments context'
+    include payments, * <-> payments
+  }
+
+  view PaymentsContainers of payments {
+    title 'Payments containers'
+    include *
+  }
+
+  view PaymentsComponents of payments.paymentApi {
+    title 'Payments components'
+    include *
+  }
+}

@@ -1,0 +1,32 @@
+model {
+  fulfilment = softwareSystem 'Fulfilment' {
+    description 'Picks, packs and ships orders and inspects returns.'
+
+    fulfilmentService = container 'Fulfilment Service' {
+      description 'Consumes order events, books shipments and records inspections.'
+      technology 'Python'
+    }
+    warehouseApp = container 'Warehouse App' {
+      description 'Handheld app for picking, packing and inspecting.'
+      technology 'TypeScript, React'
+      style {
+        shape mobile
+      }
+    }
+    fulfilmentDb = container 'Fulfilment Database' {
+      description 'Stores pick lists, shipments and inspections.'
+      technology 'PostgreSQL'
+      style {
+        shape storage
+      }
+    }
+  }
+
+  warehouseWorker -> fulfilment.warehouseApp 'Picks, packs and inspects using' 'HTTPS'
+  fulfilment.warehouseApp -> fulfilment.fulfilmentService 'Sends progress to' 'JSON/HTTPS'
+  fulfilment.fulfilmentService -> fulfilment.fulfilmentDb 'Reads and writes' 'SQL'
+  fulfilment.fulfilmentService -[async]-> eventBus.broker 'Consumes OrderPlaced and ReturnRequested from' 'Kafka'
+  fulfilment.fulfilmentService -> shippingCarriers 'Books shipments with' 'HTTPS'
+  fulfilment.fulfilmentService -> erp 'Updates stock in' 'HTTPS'
+  fulfilment.fulfilmentService -> orders.orderApi.returnHandler 'Reports inspection results to' 'JSON/HTTPS'
+}

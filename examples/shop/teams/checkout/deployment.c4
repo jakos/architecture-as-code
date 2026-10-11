@@ -1,0 +1,60 @@
+deployment {
+  extend prod.cluster {
+    checkoutNs = node 'checkout' {
+      technology 'Kubernetes Namespace'
+      metadata {
+        kubernetes_namespace 'checkout'
+      }
+
+      cartApi = instanceOf checkout.cartApi {
+        metadata {
+          kubernetes_kind 'Deployment'
+          kubernetes_name 'checkout-cart-api'
+        }
+      }
+
+      checkoutApi = instanceOf checkout.checkoutApi {
+        metadata {
+          kubernetes_kind 'Deployment'
+          kubernetes_name 'checkout-checkout-api'
+        }
+      }
+
+      cartStore = instanceOf checkout.cartStore {
+        metadata {
+          kubernetes_kind 'StatefulSet'
+          kubernetes_name 'checkout-cart-store'
+        }
+      }
+    }
+  }
+  extend staging.cluster {
+    checkoutNs = node 'checkout' {
+      technology 'Kubernetes Namespace'
+      metadata {
+        kubernetes_namespace 'checkout'
+      }
+
+      cartApi = instanceOf checkout.cartApi {
+        metadata {
+          kubernetes_kind 'Deployment'
+          kubernetes_name 'checkout-cart-api'
+        }
+      }
+
+      checkoutApi = instanceOf checkout.checkoutApi {
+        metadata {
+          kubernetes_kind 'Deployment'
+          kubernetes_name 'checkout-checkout-api'
+        }
+      }
+
+      cartStore = instanceOf checkout.cartStore {
+        metadata {
+          kubernetes_kind 'StatefulSet'
+          kubernetes_name 'checkout-cart-store'
+        }
+      }
+    }
+  }
+}

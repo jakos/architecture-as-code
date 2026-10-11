@@ -1,0 +1,60 @@
+deployment {
+  extend prod.cluster {
+    fulfilmentNs = node 'fulfilment' {
+      technology 'Kubernetes Namespace'
+      metadata {
+        kubernetes_namespace 'fulfilment'
+      }
+
+      fulfilmentService = instanceOf fulfilment.fulfilmentService {
+        metadata {
+          kubernetes_kind 'Deployment'
+          kubernetes_name 'fulfilment-fulfilment-service'
+        }
+      }
+
+      warehouseApp = instanceOf fulfilment.warehouseApp {
+        metadata {
+          kubernetes_kind 'Deployment'
+          kubernetes_name 'fulfilment-warehouse-app'
+        }
+      }
+
+      fulfilmentDb = instanceOf fulfilment.fulfilmentDb {
+        metadata {
+          kubernetes_kind 'StatefulSet'
+          kubernetes_name 'fulfilment-fulfilment-db'
+        }
+      }
+    }
+  }
+  extend staging.cluster {
+    fulfilmentNs = node 'fulfilment' {
+      technology 'Kubernetes Namespace'
+      metadata {
+        kubernetes_namespace 'fulfilment'
+      }
+
+      fulfilmentService = instanceOf fulfilment.fulfilmentService {
+        metadata {
+          kubernetes_kind 'Deployment'
+          kubernetes_name 'fulfilment-fulfilment-service'
+        }
+      }
+
+      warehouseApp = instanceOf fulfilment.warehouseApp {
+        metadata {
+          kubernetes_kind 'Deployment'
+          kubernetes_name 'fulfilment-warehouse-app'
+        }
+      }
+
+      fulfilmentDb = instanceOf fulfilment.fulfilmentDb {
+        metadata {
+          kubernetes_kind 'StatefulSet'
+          kubernetes_name 'fulfilment-fulfilment-db'
+        }
+      }
+    }
+  }
+}

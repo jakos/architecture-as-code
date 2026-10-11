@@ -1,0 +1,17 @@
+model {
+  customer = person 'Customer' {
+    description 'Registered shopper who buys products and returns them.'
+  }
+  guest = person 'Guest' {
+    description 'Anonymous visitor who browses and checks out without an account.'
+  }
+  supportAgent = person 'Support Agent' {
+    description 'Helps customers with accounts and orders.'
+  }
+  warehouseWorker = person 'Warehouse Worker' {
+    description 'Picks, packs and inspects returned goods.'
+  }
+  merchantAdmin = person 'Merchant Admin' {
+    description 'Maintains the product catalog.'
+  }
+}

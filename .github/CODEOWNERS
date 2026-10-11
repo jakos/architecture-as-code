@@ -3,8 +3,5 @@
 #   shared/, views/   owned by the architecture owners
 #
 # No rule is active yet: a rule naming a team that does not exist is an error on GitHub.
-# Add one per team once the owners exist, for example:
-#
-# /examples/shop/teams/shop/  @<org>/<team>
-# /examples/shop/shared/      @<org>/<architecture-owners>
-# /examples/shop/views/       @<org>/<architecture-owners>
+# examples/shop/CODEOWNERS shows what the rules would look like, with fictional example
+# teams. Add one rule per team here once the real owners exist.

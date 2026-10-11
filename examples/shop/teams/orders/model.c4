@@ -1,0 +1,48 @@
+model {
+  orders = softwareSystem 'Orders' {
+    description 'Order lifecycle: placing, tracking and returns.'
+
+    orderApi = container 'Order API' {
+      description 'Creates orders, tracks them and handles returns.'
+      technology 'Python, FastAPI'
+
+      orderController = component 'Order Controller' {
+        description 'HTTP entry point for orders and returns.'
+      }
+      orderService = component 'Order Service' {
+        description 'Creates orders and reacts to payment events.'
+      }
+      returnHandler = component 'Return Handler' {
+        description 'Registers returns and decides on refunds after inspection.'
+      }
+      eventPublisher = component 'Order Event Publisher' {
+        description 'Publishes OrderPlaced and ReturnRequested.'
+      }
+      notificationSender = component 'Notification Sender' {
+        description 'Tells customers about their order and returns.'
+      }
+    }
+    orderDb = container 'Order Database' {
+      description 'Stores orders and returns.'
+      technology 'PostgreSQL'
+      style {
+        shape storage
+      }
+    }
+  }
+
+  customer -> orders.orderApi.orderController 'Tracks orders and requests returns using' 'HTTPS'
+  supportAgent -> orders.orderApi.orderController 'Looks up orders using' 'HTTPS'
+  orders.orderApi.orderController -> orders.orderApi.orderService 'Creates and reads orders via'
+  orders.orderApi.orderController -> orders.orderApi.returnHandler 'Registers returns via'
+  orders.orderApi.orderService -> orders.orderDb 'Reads and writes' 'SQL'
+  orders.orderApi.orderService -> orders.orderApi.eventPublisher 'Publishes OrderPlaced via'
+  orders.orderApi.orderService -> orders.orderApi.notificationSender 'Notifies customers via'
+  orders.orderApi.orderService -[async]-> eventBus.broker 'Subscribes to PaymentFailed on' 'Kafka'
+  orders.orderApi.returnHandler -> orders.orderDb 'Reads and writes returns in' 'SQL'
+  orders.orderApi.returnHandler -> orders.orderApi.eventPublisher 'Publishes ReturnRequested via'
+  orders.orderApi.returnHandler -> orders.orderApi.notificationSender 'Notifies customers via'
+  orders.orderApi.returnHandler -> payments.paymentApi.refundService 'Requests refunds from' 'JSON/HTTPS'
+  orders.orderApi.eventPublisher -[async]-> eventBus.broker 'Publishes OrderPlaced and ReturnRequested to' 'Kafka'
+  orders.orderApi.notificationSender -> messaging 'Sends messages via' 'HTTPS'
+}

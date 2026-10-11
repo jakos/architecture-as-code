@@ -1,8 +1,42 @@
 deployment {
-  localKind = environment 'local-kind' {
-    cluster = node 'kind cluster' {
-      description 'Local Kubernetes in containers.'
-      technology 'kind'
+  prod = environment 'Production' {
+    cluster = node 'Production cluster' {
+      description 'Kubernetes cluster serving customers.'
+      technology 'Kubernetes'
+
+      platformNs = node 'platform' {
+        technology 'Kubernetes Namespace'
+        metadata {
+          kubernetes_namespace 'platform'
+        }
+
+        broker = instanceOf eventBus.broker {
+          metadata {
+            kubernetes_kind 'StatefulSet'
+            kubernetes_name 'event-broker'
+          }
+        }
+      }
+    }
+  }
+  staging = environment 'Staging' {
+    cluster = node 'Staging cluster' {
+      description 'Kubernetes cluster for pre-release testing.'
+      technology 'Kubernetes'
+
+      platformNs = node 'platform' {
+        technology 'Kubernetes Namespace'
+        metadata {
+          kubernetes_namespace 'platform'
+        }
+
+        broker = instanceOf eventBus.broker {
+          metadata {
+            kubernetes_kind 'StatefulSet'
+            kubernetes_name 'event-broker'
+          }
+        }
+      }
     }
   }
 }

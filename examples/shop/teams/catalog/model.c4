@@ -1,0 +1,49 @@
+model {
+  catalog = softwareSystem 'Catalog' {
+    description 'Product data, search and the web shop UI.'
+
+    storefront = container 'Storefront' {
+      description 'The web shop UI used by customers and guests.'
+      technology 'TypeScript, Next.js'
+      style {
+        shape browser
+      }
+    }
+    merchantPortal = container 'Merchant Portal' {
+      description 'Back-office UI for maintaining products.'
+      technology 'TypeScript, React'
+      style {
+        shape browser
+      }
+    }
+    productApi = container 'Product API' {
+      description 'Serves products, prices and stock; reserves stock.'
+      technology 'Python, FastAPI'
+    }
+    productDb = container 'Product Database' {
+      description 'Stores products, prices and stock levels.'
+      technology 'PostgreSQL'
+      style {
+        shape storage
+      }
+    }
+    searchIndex = container 'Search Index' {
+      description 'Full-text product search.'
+      technology 'OpenSearch'
+      style {
+        shape storage
+      }
+    }
+  }
+
+  customer -> catalog.storefront 'Browses and shops using' 'HTTPS'
+  guest -> catalog.storefront 'Browses and shops using' 'HTTPS'
+  merchantAdmin -> catalog.merchantPortal 'Maintains products using' 'HTTPS'
+  catalog.storefront -> catalog.productApi 'Reads products from' 'JSON/HTTPS'
+  catalog.merchantPortal -> catalog.productApi 'Edits products via' 'JSON/HTTPS'
+  catalog.productApi -> catalog.productDb 'Reads and writes' 'SQL'
+  catalog.productApi -> catalog.searchIndex 'Indexes and queries' 'HTTPS'
+  catalog.productApi -[async]-> eventBus.broker 'Publishes ProductChanged to' 'Kafka'
+  catalog.storefront -> checkout.cartApi 'Adds items to cart via' 'JSON/HTTPS'
+  catalog.storefront -> checkout.checkoutApi.controller 'Submits checkout to' 'JSON/HTTPS'
+}
