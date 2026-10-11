@@ -115,10 +115,12 @@ The branch names below are for Flow A. The editor PoC names its branch
   instead of `payments.paymentApi.paymentController`. The relation
   `checkout.checkoutApi.paymentClient -> payments.paymentApi.paymentController` lives in
   `teams/checkout/model.c4`, because checkout starts the call.
-- Owners: the PR touches `teams/checkout/`, so `@shop-example/team-checkout` must review
-  (plus `@shop-example/team-payments` if payments files change too).
-- Expected: the diff is in checkout's folder and needs `team-checkout` approval. Payments
-  cannot change the relation in its own folder.
+- Owners: payments adds `authorisationService` in `teams/payments/model.c4` and checkout
+  changes the relation in `teams/checkout/model.c4`, so both `@shop-example/team-payments`
+  and `@shop-example/team-checkout` must review.
+- Expected: the diff touches both teams' folders and needs both approvals. Changing only
+  the checkout relation fails `just validate`, because the new component does not exist
+  yet. Payments cannot change the relation in its own folder.
 
 ### 3. Renaming an element another team uses
 
