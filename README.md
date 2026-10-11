@@ -31,3 +31,7 @@ Using Docker instead of Podman: copy `.env.example` to `.env` and set `CONTAINER
   - [LikeC4 comparison](docs/research/likec4-comparison.md): LikeC4 compared with the Structurizr workflow
   - [LikeC4 trial PoC](docs/research/likec4-trial-poc.md): the browser-editor path built locally in both tools, with measurements
   - [LikeC4 web editing](docs/research/likec4-web-editing.md): the in-browser editing service
+
+## License
+
+[MIT](LICENSE)
