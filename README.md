@@ -1,9 +1,25 @@
 # architecture-as-code
 
-C4 architecture models in LikeC4, kept in git, with a workflow for editing, validating,
-publishing and checking them against Kubernetes.
+Keep a multi-team C4 architecture model as code in git, using [LikeC4](https://likec4.dev).
+Each team owns its folder, changes go through pull request review, and CI checks the model.
 
-**Status:** draft. See [docs/workflow.md](docs/workflow.md) for the flows and what is built.
+The project started as a comparison of Structurizr and LikeC4. LikeC4 won (see
+[ADR 0006](docs/decisions/0006-likec4-is-the-tool-of-record.md)).
+
+## Who it is for
+
+- Teams whose architecture diagrams drift out of date, or live in one person's drawing tool.
+- Organisations where several teams edit one shared model at the same time.
+- Anyone who wants architecture changes reviewed like code, with `CODEOWNERS` per folder.
+
+## The example
+
+![Landscape view of the fictional shop example model, rendered by LikeC4](docs/images/shop-landscape.png)
+
+[`examples/shop`](examples/shop/README.md) is a fictional web shop with six domain teams
+and an architecture team. It has one folder per team, every C4 level (context, container,
+component and deployment, with `kubernetes_*` metadata), dynamic views, a menu folder per
+team, and written multi-user scenarios such as parallel edits and merge conflicts.
 
 ## Quick start
 
@@ -18,19 +34,31 @@ just site                   # http://127.0.0.1:8081 static site of examples/shop
 just down                   # stop both
 ```
 
-Using Docker instead of Podman: copy `.env.example` to `.env` and set `CONTAINER_ENGINE=docker`.
+`uv run prek install` is optional. It installs git hooks from `prek.toml`: formatting and
+lint checks on commit, tests and model validation on push.
+
+Using Docker instead of Podman: copy `.env.example` to `.env` and set
+`CONTAINER_ENGINE=docker`. To serve another project, run `MODEL=<dir> just up`.
+
+## Status
+
+Early draft. [docs/workflow.md](docs/workflow.md) has the detail.
+
+| Works today | Not yet |
+| --- | --- |
+| Edit `.c4` files in the repo, live render with `just up` | Browser editor that opens PRs: local proof of concept only, it commits to a `model/*` branch and does not open the PR itself |
+| Validation gate locally, on pre-push and in CI (`just check`) | Publishing the site from CI (planned) |
+| Static site built and served locally (`just site`) | Drift check against Kubernetes, read-only (planned) |
+| Example multi-team model in `examples/shop` | Generating Kubernetes objects (planned) |
 
 ## Docs
 
 - [Workflow](docs/workflow.md): edit in repo, browser editor → PR, deploy
-- [ADR 0006](docs/decisions/0006-likec4-is-the-tool-of-record.md): LikeC4 is the tool of record
 - [Conventions](docs/conventions.md): Kubernetes metadata keys, project layout
-- [Decisions](docs/decisions/)
-- History, written before the switch from Structurizr:
-  - [Workflow research](docs/research/structurizr-workflows.md): options for the browser editor and the branch/PR lifecycle
-  - [LikeC4 comparison](docs/research/likec4-comparison.md): LikeC4 compared with the Structurizr workflow
-  - [LikeC4 trial PoC](docs/research/likec4-trial-poc.md): the browser-editor path built locally in both tools, with measurements
-  - [LikeC4 web editing](docs/research/likec4-web-editing.md): the in-browser editing service
+- [Decisions](docs/decisions/): ADRs, including
+  [ADR 0006](docs/decisions/0006-likec4-is-the-tool-of-record.md)
+- [Shop example](examples/shop/README.md)
+- [Research](docs/research/): background notes, written before the switch to LikeC4
 
 ## License
 
