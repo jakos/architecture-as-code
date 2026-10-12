@@ -60,6 +60,17 @@ Early draft. [docs/workflow.md](docs/workflow.md) has the detail.
 - [Shop example](examples/shop/README.md)
 - [Research](docs/research/): background notes, written before the switch to LikeC4
 
+## Built on LikeC4
+
+This project is built on [LikeC4](https://likec4.dev)
+([likec4/likec4](https://github.com/likec4/likec4), MIT licence). It is a separate project, not
+part of LikeC4 or endorsed by it. Validation, formatting, the live diagram and the static
+site all come from the pinned LikeC4 image. The browser editor is the LikeC4 playground,
+built from source at the pinned tag with a small patch set
+([`docker/editor/model-editor`](docker/editor/model-editor/README.md),
+[ADR 0007](docs/decisions/0007-model-editor-on-likec4-playground.md)). This repo adds the
+model layout, team ownership, CI checks, the editor's server and the git workflow.
+
 ## License
 
 [MIT](LICENSE)
