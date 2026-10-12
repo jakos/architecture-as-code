@@ -1,0 +1,37 @@
+[2m21:21:00.488[0m [1m[32mINFO [0m [1m[36mlikec4.lang[0m [2mlayout[22m wasm
+[2m21:21:00.507[0m [1m[32mINFO [0m [1m[36mlikec4.lang[0m [2mworkspace:[22m /data
+[2m21:21:00.553[0m [1m[32mINFO [0m [1m[36mlikec4.server.projects[0m add [32m'shop'[39m
+[2m21:21:00.554[0m [1m[32mINFO [0m [1m[36mlikec4.server.workspace[0m loaded [33m1[39m projects
+[2m21:21:02.334[0m [1m[32mINFO [0m [1m[36mlikec4.lang[0m [2mworkspace:[22m found 29 source files
+[2m21:21:03.071[0m [1m[32mINFO [0m [1m[36mlikec4.c4:validate[0m [32mvalidate 2.5s[39m
+[2m21:21:02.335[0m [1m[31mERROR[0m [1m[36mlikec4[0m Invalid /data/shared/people.c4
+    [2mLine 19: [22m[31mCould not resolve reference to Referenceable named 'nope1'.[39m
+    [2mLine 19: [22m[31mCould not resolve reference to Referenceable named 'nope2'.[39m
+    [2mLine 19: [22m[31mSource not resolved[39m
+[2m21:21:02.337[0m [1m[31mERROR[0m [1m[36mlikec4[0m Invalid /data/teams/orders/model.c4
+    [2mLine 9: [22m[31mExpecting: one of these possible Token sequences:[39m
+          [31m  1. [Dot][39m
+          [31m  2. [-[][39m
+          [31m  3. [<->][39m
+          [31m  4. [->][39m
+          [31m...[39m
+    [2mLine 9: [22m[31mExpecting: one of these possible Token sequences:[39m
+          [31m  1. [Dot][39m
+          [31m  2. [-[][39m
+          [31m  3. [<->][39m
+          [31m  4. [->][39m
+          [31m...[39m
+    [2mLine 9: [22m[31mExpecting: one of these possible Token sequences:[39m
+          [31m  1. [Dot][39m
+          [31m  2. [-[][39m
+          [31m  3. [<->][39m
+          [31m  4. [->][39m
+          [31m...[39m
+    [2mLine 9: [22m[31mExpecting: one of these possible Token sequences:[39m
+          [31m  1. [extend][39m
+          [31m  2. [Dot][39m
+          [31m  3. [-[][39m
+          [31m  4. [<->][39m
+          [31m...[39m
+    [2mLine 9: [22m[31mExpecting token of type '}' but found `descriptionn`.[39m
+[2m21:21:03.071[0m [1m[31mERROR[0m [1m[36mlikec4.c4:validate[0m [31m[31m✗ Invalid[31m[2m (29 files, 40 errors)[22m[39m

@@ -1,0 +1,7 @@
+# Keep build/likec4-src (a full upstream clone), .git and caches out of every image build context.
+build/
+.git/
+.venv/
+.ruff_cache/
+.pytest_cache/
+__pycache__/

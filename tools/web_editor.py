@@ -1,98 +1,163 @@
 """Browser editing service for a LikeC4 model in a clone (B1 editor PoC, local only).
 
-Serves one page (text editor on the left, the `likec4 start` diagram in an iframe on the
-right) and a small JSON API that reads and writes the `.c4` files of the model directory in
-the clone. `POST /api/submit` calls `submit.submit` (validate, commit the model directory,
-send the model/* branch to `origin`, print the PR command). It never runs `gh`.
+Serves either the built model editor (`--static <dir>`: the LikeC4 playground with our patch
+set, see docker/editor/model-editor) or the older single textarea page (text editor on the
+left, the `likec4 start` diagram in an iframe on the right), plus a small JSON API on the
+`.c4` files of the model. The model is reached only through a `ModelSource` (model_source.py);
+`POST /api/submit` goes to `ModelSource.submit` (validate, commit the `.c4` files, send the
+model/* branch to `origin`, print the PR command). It never runs `gh`.
 
-Every request needs HTTP Basic auth with the password from the PASSWORD environment
-variable; every non-GET request needs an Origin header equal to the page's own origin.
+Every request (static files included) needs HTTP Basic auth with the password from the
+PASSWORD environment variable; every non-GET request needs an Origin header equal to the
+page's own origin.
 
 Stdlib only and no 3.14-only syntax: it runs on the Python 3 shipped in the images.
 """
 
 import argparse
 import base64
-import contextlib
 import hmac
 import html
-import io
 import json
+import mimetypes
 import os
 import re
 import shlex
 import subprocess
 import sys
-import tempfile
-import threading
 from collections.abc import Callable, Sequence
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
-from pathlib import Path
-from urllib.parse import parse_qs, urlsplit
+from pathlib import Path, PurePosixPath
+from urllib.parse import parse_qs, unquote, urlsplit
 
-import submit
+from model_source import (  # noqa: F401  (re-exported: the path guard lives in model_source)
+    SUFFIX,
+    LocalCloneSource,
+    ModelSource,
+    SourceError,
+    list_model_files,
+    resolve_model_file,
+    write_atomic,
+)
 
 MAX_BODY = 1024 * 1024
-SUFFIX = ".c4"
 HTML_NAME = "web_editor.html"
+INDEX_NAME = "index.html"
 RENDER_PLACEHOLDER = "__RENDER_URL__"
-ANSI_RE = re.compile(r"\[[0-9;]*m")  # likec4 colours its log lines
+ANSI_RE = re.compile(r"\x1b\[[0-9;]*m")  # likec4 colours its log lines
+CONTENT_TYPES = {
+    ".html": "text/html; charset=utf-8",
+    ".js": "text/javascript; charset=utf-8",
+    ".mjs": "text/javascript; charset=utf-8",
+    ".css": "text/css; charset=utf-8",
+    ".wasm": "application/wasm",
+    ".woff2": "font/woff2",
+    ".woff": "font/woff",
+    ".json": "application/json; charset=utf-8",
+    ".map": "application/json; charset=utf-8",
+    ".svg": "image/svg+xml",
+    ".png": "image/png",
+    ".txt": "text/plain; charset=utf-8",
+}
+IMMUTABLE = "public, max-age=31536000, immutable"  # hashed build output under assets/
+
+# One line of likec4's log output, colours removed: "21:21:02.335 ERROR likec4 Invalid /data/a.c4".
+LOG_RE = re.compile(r"^\d\d:\d\d:\d\d\.\d+ +(?P<level>[A-Z]+) +\S+ (?P<text>.*)$")
+INVALID_RE = re.compile(
+    r"^Invalid (?!\()(?P<path>.+)$"
+)  # not the "Invalid (29 files, ...)" summary
+LINE_RE = re.compile(r"^\s+Line (?P<line>\d+): (?P<message>.*)$")
+NEEDS_FORMAT_RE = re.compile(r"^needs formatting (?P<path>.+)$")
+SEVERITIES = {"ERROR": "error", "WARN": "warning", "WARNING": "warning"}
 
 Runner = Callable[..., subprocess.CompletedProcess]
-SubmitFn = Callable[..., None]
 
-
-class RequestError(Exception):
-    """A refusal that maps to an HTTP status and a message for the caller."""
-
-    def __init__(self, status: int, message: str) -> None:
-        super().__init__(message)
-        self.status = status
-        self.message = message
+# A refusal that maps to an HTTP status and a message for the caller.
+RequestError = SourceError
 
 
 def plain(text: str) -> str:
     return ANSI_RE.sub("", text)
 
 
-def resolve_model_file(model_dir: Path, rel: str) -> Path:
-    """Map a relative `.c4` path to a file inside model_dir, or raise a 400."""
-    if not rel or "\x00" in rel:
-        raise RequestError(HTTPStatus.BAD_REQUEST, "path is missing")
-    candidate = Path(rel)
-    if candidate.is_absolute() or rel.startswith(("/", "\\")) or ".." in candidate.parts:
-        raise RequestError(HTTPStatus.BAD_REQUEST, "path must be relative and stay in the model")
-    if candidate.suffix != SUFFIX:
-        raise RequestError(HTTPStatus.BAD_REQUEST, f"only {SUFFIX} files can be edited")
-    root = model_dir.resolve()
-    target = (root / candidate).resolve()  # follows symlinks, so an escaping link is caught
-    if root != target and root not in target.parents:
-        raise RequestError(HTTPStatus.BAD_REQUEST, "path resolves outside the model directory")
-    return target
+def _relative_to_workdir(raw: str, workdir: Path) -> str | None:
+    """Model-relative POSIX path for a path printed by likec4, or None if it is elsewhere."""
+    text = raw.strip().replace("\\", "/")
+    for base in {workdir.as_posix().rstrip("/"), workdir.resolve().as_posix().rstrip("/")}:
+        if text.startswith(base + "/"):
+            return text[len(base) + 1 :]
+    if text.startswith("/") or re.match(r"^[A-Za-z]:/", text):
+        return None  # absolute, but not inside the model directory
+    return text
 
 
-def list_model_files(model_dir: Path) -> list[str]:
-    """Relative POSIX paths of the `.c4` files under model_dir that really live inside it."""
-    root = model_dir.resolve()
-    found = []
-    for item in sorted(root.rglob(f"*{SUFFIX}")):
-        if item.is_file() and (root in item.resolve().parents):
-            found.append(item.relative_to(root).as_posix())
-    return found
+def parse_problems(output: str, workdir: Path) -> list[dict]:
+    """Turn `likec4 validate` / `format --check` output into problems for the editor.
 
+    Known shapes (see tools/tests/fixtures): an `Invalid <file>` log line followed by indented
+    `Line <n>: <message>` lines (the CLI prints no column), and `needs formatting <file>`.
+    Informational log lines are recognised and skipped (the raw output stays in `results`).
+    Anything else is kept as a problem without a path: nothing is dropped silently.
+    """
+    problems: list[dict] = []
+    seen: set[tuple] = set()
+    context: tuple[str | None, str, str] | None = None  # path, raw path, severity
+    last: dict | None = None
 
-def write_atomic(target: Path, text: str) -> None:
-    """Write next to the target and rename over it, so readers never see half a file."""
-    fd, tmp_name = tempfile.mkstemp(dir=target.parent, prefix=f".{target.name}.", suffix=".tmp")
-    try:
-        with os.fdopen(fd, "w", encoding="utf-8", newline="") as handle:
-            handle.write(text)
-        os.replace(tmp_name, target)
-    except BaseException:
-        with contextlib.suppress(OSError):
-            os.unlink(tmp_name)
-        raise
+    def add(path, line, severity, message) -> None:
+        nonlocal last
+        key = (path, line, message)
+        if key in seen:
+            last = {"message": ""}  # a repeat: its continuation lines go nowhere
+            return
+        seen.add(key)
+        last = {
+            "path": path,
+            "line": line,
+            "column": None,
+            "severity": severity,
+            "message": message,
+        }
+        problems.append(last)
+
+    for raw_line in plain(output).splitlines():
+        if not raw_line.strip():
+            continue
+        log = LOG_RE.match(raw_line)
+        if log:
+            context = None
+            last = None
+            text = log.group("text")
+            severity = SEVERITIES.get(log.group("level"))
+            invalid = INVALID_RE.match(text)
+            needs_format = NEEDS_FORMAT_RE.match(text)
+            if invalid:
+                raw_path = invalid.group("path")
+                context = (
+                    _relative_to_workdir(raw_path, workdir),
+                    raw_path,
+                    severity or "error",
+                )
+            elif needs_format:
+                path = _relative_to_workdir(needs_format.group("path"), workdir)
+                add(path, None, "warning", "needs formatting")
+            elif severity:
+                add(None, None, severity, text)
+            continue
+        line = LINE_RE.match(raw_line)
+        if line and context is not None:
+            path, raw_path, severity = context
+            number = int(line.group("line"))
+            if path is None:
+                add(None, None, severity, f"{raw_path}: Line {number}: {line.group('message')}")
+            else:
+                add(path, number, severity, line.group("message"))
+        elif last is not None:
+            last["message"] += "\n" + raw_line.strip()  # continuation of the previous message
+        else:
+            add(None, None, "error", raw_line.strip())
+    return problems
 
 
 class Editor:
@@ -100,40 +165,70 @@ class Editor:
 
     def __init__(
         self,
-        repo: Path,
-        path: str,
-        render_url: str,
+        source: ModelSource,
+        render_url: str = "",
         run: Runner = subprocess.run,
-        submit_fn: SubmitFn = submit.submit,
         page: Path | None = None,
+        static: Path | None = None,
     ) -> None:
-        self.repo = repo
-        self.path = path
-        self.model_dir = repo / path
+        self.source = source
         self.render_url = render_url
         self.run = run
-        self.submit_fn = submit_fn
         self.page = page or Path(__file__).with_name(HTML_NAME)
-        self.lock = threading.Lock()  # submit prints to stdout; one command at a time
+        self.static = static
 
     def index(self) -> str:
         text = self.page.read_text(encoding="utf-8")
         return text.replace(RENDER_PLACEHOLDER, html.escape(self.render_url, quote=True))
 
-    def read_file(self, rel: str) -> str:
-        target = resolve_model_file(self.model_dir, rel)
+    def static_file(self, route: str) -> tuple[bytes, str, str]:
+        """Body, content type and Cache-Control of a built-editor file, or index.html for the
+        single-page app's own routes. Raises a 400 for a traversal attempt and a 404 for a
+        missing file that looks like an asset."""
+        if self.static is None:
+            raise RequestError(HTTPStatus.NOT_FOUND, "not found")
+        rel = unquote(route).lstrip("/")
+        parts = PurePosixPath(rel).parts
+        if "\x00" in rel or "\\" in rel or ".." in parts:
+            raise RequestError(HTTPStatus.BAD_REQUEST, "path must stay in the editor files")
+        root = self.static.resolve()
+        target = (root / rel).resolve() if rel else root / INDEX_NAME
+        if root not in target.parents:
+            raise RequestError(HTTPStatus.BAD_REQUEST, "path resolves outside the editor files")
         if not target.is_file():
-            raise RequestError(HTTPStatus.NOT_FOUND, f"{rel} does not exist")
-        return target.read_text(encoding="utf-8")
+            if parts and "." in parts[-1]:
+                raise RequestError(HTTPStatus.NOT_FOUND, "not found")
+            target = root / INDEX_NAME  # route of the single-page app
+            if not target.is_file():
+                raise RequestError(HTTPStatus.NOT_FOUND, "the editor build is missing")
+        content_type = (
+            CONTENT_TYPES.get(target.suffix.lower())
+            or mimetypes.guess_type(target.name)[0]
+            or "application/octet-stream"
+        )
+        if target.name == INDEX_NAME:
+            cache = "no-store"
+        elif "assets" in target.relative_to(root).parts[:-1]:
+            cache = IMMUTABLE
+        else:
+            cache = "no-cache"
+        return target.read_bytes(), content_type, cache
+
+    def read_file(self, rel: str) -> str:
+        return self.source.read(rel)
 
     def write_file(self, rel: str, text: str) -> None:
-        target = resolve_model_file(self.model_dir, rel)
-        if not target.parent.is_dir():
-            raise RequestError(HTTPStatus.BAD_REQUEST, "the directory of that file does not exist")
-        write_atomic(target, text)
+        self.source.write(rel, text)
+
+    def workspace(self) -> dict:
+        """Every `.c4` file in one response: what the in-browser language server needs."""
+        return {"branch": self.source.branch(), "files": self._snapshot()}
+
+    def _snapshot(self) -> dict[str, str]:
+        return {rel: self.source.read(rel) for rel in self.source.list_files()}
 
     def _tool(self, cmd: list[str]) -> dict:
-        proc = self.run(cmd, cwd=self.model_dir, capture_output=True, text=True, check=False)
+        proc = self.run(cmd, cwd=self.source.workdir(), capture_output=True, text=True, check=False)
         output = (proc.stdout or "") + (proc.stderr or "")
         return {
             "command": shlex.join(cmd),
@@ -143,32 +238,31 @@ class Editor:
 
     def validate(self) -> dict:
         results = [self._tool(["likec4", "validate"]), self._tool(["likec4", "format", "--check"])]
-        return {"ok": all(r["exit"] == 0 for r in results), "results": results}
+        workdir = self.source.workdir()
+        problems: list[dict] = []
+        for result in results:
+            for problem in parse_problems(result["output"], workdir):
+                if problem not in problems:
+                    problems.append(problem)
+        return {
+            "ok": all(r["exit"] == 0 for r in results),
+            "results": results,
+            "problems": problems,
+        }
 
     def format(self) -> dict:
+        before = self._snapshot()
         result = self._tool(["likec4", "format"])
-        return {"ok": result["exit"] == 0, "results": [result]}
+        after = self._snapshot()
+        changed = [rel for rel, text in after.items() if before.get(rel) != text]
+        return {"ok": result["exit"] == 0, "results": [result], "changed": changed}
 
     def status(self) -> dict:
-        def git(*args: str) -> str:
-            proc = self.run(
-                ["git", "-C", str(self.repo), *args], capture_output=True, text=True, check=False
-            )
-            return (proc.stdout or "").strip()
-
-        return {"branch": git("branch", "--show-current"), "changes": git(*self._porcelain())}
-
-    def _porcelain(self) -> tuple[str, ...]:
-        return ("status", "--porcelain", "--", self.path)
+        return {"branch": self.source.branch(), "changes": self.source.changes()}
 
     def submit(self, message: str) -> dict:
-        buffer = io.StringIO()
-        with self.lock, contextlib.redirect_stdout(buffer):
-            try:
-                self.submit_fn("likec4", self.path, self.repo, message)
-            except submit.SubmitError as err:
-                raise RequestError(HTTPStatus.UNPROCESSABLE_ENTITY, plain(str(err))) from err
-        return {"ok": True, "output": buffer.getvalue().strip()}
+        result = self.source.submit(message)
+        return {"ok": True, "output": result.output, "skipped": list(result.skipped)}
 
 
 def password_matches(header: str | None, password: str) -> bool:
@@ -186,6 +280,10 @@ def password_matches(header: str | None, password: str) -> bool:
 def make_handler(editor: Editor, password: str) -> type[BaseHTTPRequestHandler]:
     class Handler(BaseHTTPRequestHandler):
         server_version = "web-editor"
+        # Keep-alive: close-after-response truncated/reset large assets over the Podman
+        # port forward from the Windows host. Every response sends Content-Length.
+        protocol_version = "HTTP/1.1"
+        timeout = 60  # idle keep-alive connections must not hold a thread forever
 
         def log_message(self, format: str, *args: object) -> None:
             # Method, path without query and status only: never headers or bodies.
@@ -193,11 +291,14 @@ def make_handler(editor: Editor, password: str) -> type[BaseHTTPRequestHandler]:
             line = " ".join(first[:2]).split("?")[0]
             sys.stderr.write(f"{line} {' '.join(str(a) for a in args[1:2])}\n")
 
-        def _send(self, status: int, body: bytes, content_type: str, extra=None) -> None:
+        def _send(
+            self, status: int, body: bytes, content_type: str, extra=None, cache: str = "no-store"
+        ) -> None:
             self.send_response(status)
             self.send_header("Content-Type", content_type)
             self.send_header("Content-Length", str(len(body)))
-            self.send_header("Cache-Control", "no-store")
+            self.send_header("Cache-Control", cache)
+            self.send_header("X-Content-Type-Options", "nosniff")
             for key, value in (extra or {}).items():
                 self.send_header(key, value)
             self.end_headers()
@@ -258,10 +359,18 @@ def make_handler(editor: Editor, password: str) -> type[BaseHTTPRequestHandler]:
                 )
 
         def _route(self, method: str, route: str) -> None:
-            if method == "GET" and route == "/":
-                self._send(200, editor.index().encode(), "text/html; charset=utf-8")
+            if method == "GET" and not route.startswith("/api/"):
+                if editor.static is not None:
+                    body, content_type, cache = editor.static_file(route)
+                    self._send(200, body, content_type, cache=cache)
+                elif route == "/":
+                    self._send(200, editor.index().encode(), "text/html; charset=utf-8")
+                else:
+                    raise RequestError(HTTPStatus.NOT_FOUND, "not found")
             elif method == "GET" and route == "/api/files":
-                self._json(200, {"files": list_model_files(editor.model_dir)})
+                self._json(200, {"files": editor.source.list_files()})
+            elif method == "GET" and route == "/api/workspace":
+                self._json(200, editor.workspace())
             elif method == "GET" and route == "/api/file":
                 self._json(200, {"text": editor.read_file(self._query_path())})
             elif method == "PUT" and route == "/api/file":
@@ -280,7 +389,7 @@ def make_handler(editor: Editor, password: str) -> type[BaseHTTPRequestHandler]:
                 message = self._body().get("message", "")
                 if not isinstance(message, str):
                     raise RequestError(HTTPStatus.BAD_REQUEST, "'message' must be a string")
-                message = message.strip() or f"model: update {editor.path}"
+                message = message.strip() or f"model: update {editor.source.workdir().name}"
                 self._json(200, editor.submit(message))
             else:
                 raise RequestError(HTTPStatus.NOT_FOUND, "not found")
@@ -311,11 +420,16 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--repo", required=True, help="clone that holds the model")
     parser.add_argument("--path", required=True, help="model directory, relative to the repo")
     parser.add_argument("--port", type=int, default=8080)
-    parser.add_argument("--render-url", required=True, help="URL of the likec4 dev server")
+    parser.add_argument("--render-url", help="URL of the likec4 dev server (textarea page only)")
+    parser.add_argument("--static", help="directory of the built model editor to serve")
     args = parser.parse_args(argv)
+    if not args.static and not args.render_url:
+        parser.error("--render-url is required unless --static is given")
 
     password = os.environ.get("PASSWORD", "")
-    editor = Editor(Path(args.repo).resolve(), args.path, args.render_url)
+    source = LocalCloneSource(Path(args.repo).resolve(), args.path)
+    static = Path(args.static).resolve() if args.static else None
+    editor = Editor(source, args.render_url or "", static=static)
     try:
         server = make_server(editor, password, port=args.port)
     except ValueError as err:

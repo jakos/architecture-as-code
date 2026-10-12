@@ -1,0 +1,63 @@
+# Model editor (local PoC): the LikeC4 playground at a pinned tag plus our patch set, served by
+# tools/web_editor.py on a git clone. Build from the repo root: just model-editor-build
+# (needs network access to GitHub and npm; takes several minutes).
+#
+# Build stage: clone the tag, check the commit, install the locked dependencies, apply
+# docker/editor/model-editor/patches in order (the build fails if one does not apply), build and
+# typecheck apps/playground. The install comes before the patches so that a patch edit does not
+# redo it (the patches change no dependency). The playground's Cloudflare Worker (share links,
+# GitHub login) is not built and no patch calls it.
+# Runtime stage: Node (for the likec4 CLI that validates and formats), Python and git (for the
+# server and submit), and the built static app. No password or token is baked in.
+#
+# Based on LikeC4 (https://likec4.dev), MIT licence, Copyright (c) 2023-2026 Denis Davydkov.
+# The licence text is copied into the image (see the About entry in the editor).
+# Licences: LikeC4 MIT; Node.js MIT; the patches, web_editor.py and submit.py are this repo's code.
+
+FROM docker.io/library/node:22.22.3-trixie-slim AS build
+# apt packages are not version-pinned: they come from the Debian trixie archive at build time.
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends git ca-certificates python3 make g++ \
+    && rm -rf /var/lib/apt/lists/* \
+    && npm install -g pnpm@11.25.0
+WORKDIR /src
+ARG LIKEC4_TAG=v1.59.4
+ARG LIKEC4_COMMIT=33dbc2d34c399a99daf96e92fc28fe5d280a7fd5
+RUN git clone --depth 1 --branch "${LIKEC4_TAG}" https://github.com/likec4/likec4.git . \
+    && actual="$(git rev-parse HEAD)" \
+    && echo "LikeC4 ${LIKEC4_TAG} is commit ${actual}" \
+    && test "${actual}" = "${LIKEC4_COMMIT}"
+RUN pnpm install --frozen-lockfile --filter '@likec4/playground...'
+COPY docker/editor/model-editor/patches/ /patches/
+RUN set -e; \
+    for patch in /patches/*.patch; do \
+        git apply --check "${patch}"; \
+        git apply "${patch}"; \
+        echo "applied $(basename "${patch}")"; \
+    done
+WORKDIR /src/apps/playground
+RUN CI=1 pnpm exec turbo run build --ui=stream
+# The playground's own typecheck, over upstream code and our patches together.
+RUN pnpm run typecheck
+
+FROM docker.io/library/node:22.22.3-trixie-slim
+# apt packages are not version-pinned: they come from the Debian trixie archive at build time.
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends python3 git \
+    && rm -rf /var/lib/apt/lists/* \
+    && npm install -g likec4@1.59.4 \
+    && usermod -l coder -d /home/coder -m node \
+    && groupmod -n coder node
+# The base image's `node` user has uid 1000; it is renamed so paths match the other editor images.
+
+COPY --from=build /src/apps/playground/dist/client /usr/local/share/model-editor
+COPY --from=build /src/LICENSE /usr/local/share/model-editor/LICENSE-LikeC4.txt
+COPY tools/submit.py tools/model_source.py tools/web_editor.py tools/poc_remote.py \
+     docker/editor/entrypoint.py /usr/local/lib/poc/
+
+USER coder
+WORKDIR /home/coder
+# No password or token here: PASSWORD comes from the environment at run time.
+ENV RENDERER=likec4 MODEL_PATH=examples/shop EDITOR_UI=playground
+EXPOSE 8080
+ENTRYPOINT ["python3", "/usr/local/lib/poc/entrypoint.py"]

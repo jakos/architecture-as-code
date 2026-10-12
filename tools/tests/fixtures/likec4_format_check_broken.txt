@@ -1,0 +1,38 @@
+[2m21:21:05.318[0m [1m[32mINFO [0m [1m[36mlikec4.lang[0m [2mlayout[22m wasm
+[2m21:21:05.331[0m [1m[32mINFO [0m [1m[36mlikec4.lang[0m [2mworkspace:[22m /data
+[2m21:21:05.372[0m [1m[32mINFO [0m [1m[36mlikec4.server.projects[0m add [32m'shop'[39m
+[2m21:21:05.373[0m [1m[32mINFO [0m [1m[36mlikec4.server.workspace[0m loaded [33m1[39m projects
+[2m21:21:06.963[0m [1m[32mINFO [0m [1m[36mlikec4.lang[0m [2mworkspace:[22m found 29 source files
+[2m21:21:07.166[0m [1m[32mINFO [0m [1m[36mlikec4.c4:format[0m [33mneeds formatting[39m shared/people.c4
+[2m21:21:06.964[0m [1m[31mERROR[0m [1m[36mlikec4[0m Invalid /data/shared/people.c4
+    [2mLine 19: [22m[31mCould not resolve reference to Referenceable named 'nope1'.[39m
+    [2mLine 19: [22m[31mCould not resolve reference to Referenceable named 'nope2'.[39m
+    [2mLine 19: [22m[31mSource not resolved[39m
+[2m21:21:06.967[0m [1m[31mERROR[0m [1m[36mlikec4[0m Invalid /data/teams/orders/model.c4
+    [2mLine 9: [22m[31mExpecting: one of these possible Token sequences:[39m
+          [31m  1. [Dot][39m
+          [31m  2. [-[][39m
+          [31m  3. [<->][39m
+          [31m  4. [->][39m
+          [31m...[39m
+    [2mLine 9: [22m[31mExpecting: one of these possible Token sequences:[39m
+          [31m  1. [Dot][39m
+          [31m  2. [-[][39m
+          [31m  3. [<->][39m
+          [31m  4. [->][39m
+          [31m...[39m
+    [2mLine 9: [22m[31mExpecting: one of these possible Token sequences:[39m
+          [31m  1. [Dot][39m
+          [31m  2. [-[][39m
+          [31m  3. [<->][39m
+          [31m  4. [->][39m
+          [31m...[39m
+    [2mLine 9: [22m[31mExpecting: one of these possible Token sequences:[39m
+          [31m  1. [extend][39m
+          [31m  2. [Dot][39m
+          [31m  3. [-[][39m
+          [31m  4. [<->][39m
+          [31m...[39m
+    [2mLine 9: [22m[31mExpecting token of type '}' but found `descriptionn`.[39m
+[2m21:21:07.280[0m [1m[31mERROR[0m [1m[36mlikec4.c4:format[0m [31m1 of 29 file(s) need formatting:
+  shared/people.c4[39m

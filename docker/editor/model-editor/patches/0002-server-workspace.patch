@@ -1,0 +1,253 @@
+diff --git a/apps/playground/src/aac/saving.ts b/apps/playground/src/aac/saving.ts
+new file mode 100644
+index 0000000..3e2ef53
+--- /dev/null
++++ b/apps/playground/src/aac/saving.ts
+@@ -0,0 +1,112 @@
++import { useStore } from '@nanostores/react'
++import { atom } from 'nanostores'
++import { useMemo } from 'react'
++import { errorMessage, server } from './server'
++
++export type FileSaveState = 'saved' | 'saving' | 'unsaved' | 'error'
++
++type SaveInfo = {
++  /** Text the server is known to hold, per file. */
++  saved: Record<string, string>
++  inflight: string[]
++  errors: Record<string, string>
++}
++
++export const $saveInfo = atom<SaveInfo>({ saved: {}, inflight: [], errors: {} })
++
++const ACTIVE_FILE_KEY = 'aac:active-file'
++
++export function initSaved(files: Record<string, string>) {
++  $saveInfo.set({ saved: { ...files }, inflight: [], errors: {} })
++}
++
++/** Remembers only the name of the open file (never model text) across a reload. */
++export function rememberActiveFile(filename: string) {
++  try {
++    sessionStorage.setItem(ACTIVE_FILE_KEY, filename)
++  } catch {
++    // storage may be unavailable; the first file is opened then
++  }
++}
++
++export function recallActiveFile(): string | null {
++  try {
++    return sessionStorage.getItem(ACTIVE_FILE_KEY)
++  } catch {
++    return null
++  }
++}
++
++export function dirtyFiles(files: Record<string, string>, saved = $saveInfo.get().saved): string[] {
++  return Object.keys(files).filter(rel => files[rel] !== saved[rel])
++}
++
++let chain: Promise<unknown> = Promise.resolve()
++
++async function saveDirty(files: Record<string, string>): Promise<boolean> {
++  let allSaved = true
++  for (const rel of dirtyFiles(files)) {
++    const text = files[rel]!
++    const before = $saveInfo.get()
++    $saveInfo.set({ ...before, inflight: [...before.inflight, rel] })
++    try {
++      await server.saveFile(rel, text)
++      const now = $saveInfo.get()
++      const { [rel]: _dropped, ...errors } = now.errors
++      $saveInfo.set({
++        saved: { ...now.saved, [rel]: text },
++        inflight: now.inflight.filter(f => f !== rel),
++        errors,
++      })
++    } catch (err) {
++      allSaved = false
++      const now = $saveInfo.get()
++      // The text stays in the editor and in the workspace state: nothing is lost on failure.
++      $saveInfo.set({
++        ...now,
++        inflight: now.inflight.filter(f => f !== rel),
++        errors: { ...now.errors, [rel]: errorMessage(err) },
++      })
++    }
++  }
++  return allSaved
++}
++
++/** Writes every changed file to the server, one request at a time. Resolves true if all were saved. */
++export function saveAll(files: Record<string, string>): Promise<boolean> {
++  const run = chain.then(() => saveDirty(files))
++  chain = run.catch(() => undefined)
++  return run
++}
++
++/** Called by the playground state machine in place of the localStorage write. */
++export function persistWorkspace(context: { files: Record<string, string>; activeFilename: string }) {
++  rememberActiveFile(context.activeFilename)
++  void saveAll(context.files)
++}
++
++export type SaveStates = {
++  byFile: Record<string, FileSaveState>
++  errors: Record<string, string>
++  overall: FileSaveState
++}
++
++export function computeSaveStates(files: Record<string, string>, info: SaveInfo): SaveStates {
++  const byFile: Record<string, FileSaveState> = {}
++  let overall: FileSaveState = 'saved'
++  const rank: Record<FileSaveState, number> = { saved: 0, unsaved: 1, saving: 2, error: 3 }
++  for (const rel of Object.keys(files)) {
++    let state: FileSaveState = 'saved'
++    if (info.errors[rel]) state = 'error'
++    else if (info.inflight.includes(rel)) state = 'saving'
++    else if (files[rel] !== info.saved[rel]) state = 'unsaved'
++    byFile[rel] = state
++    if (rank[state] > rank[overall]) overall = state
++  }
++  return { byFile, errors: info.errors, overall }
++}
++
++export function useSaveStates(files: Record<string, string>): SaveStates {
++  const info = useStore($saveInfo)
++  return useMemo(() => computeSaveStates(files, info), [files, info])
++}
+diff --git a/apps/playground/src/aac/server.ts b/apps/playground/src/aac/server.ts
+new file mode 100644
+index 0000000..99147b2
+--- /dev/null
++++ b/apps/playground/src/aac/server.ts
+@@ -0,0 +1,70 @@
++/**
++ * Client for the model editor server (tools/web_editor.py).
++ *
++ * Same origin only: the browser sends its own Basic auth credentials, this code never sees
++ * or stores the password.
++ */
++
++export type Problem = {
++  /** Path relative to the model directory, or null when the tool output has no file. */
++  path: string | null
++  line: number | null
++  column: number | null
++  severity: 'error' | 'warning' | 'info'
++  message: string
++}
++
++export type ToolResult = { command: string; exit: number; output: string }
++
++export type WorkspacePayload = { branch: string; files: Record<string, string> }
++export type StatusPayload = { branch: string; changes: string[] }
++export type ValidatePayload = { ok: boolean; results: ToolResult[]; problems: Problem[] }
++export type FormatPayload = { ok: boolean; results: ToolResult[]; changed: string[] }
++export type SubmitPayload = { ok: boolean; output: string; skipped: string[] }
++
++export class ServerError extends Error {
++  readonly status: number
++  constructor(status: number, message: string) {
++    super(message)
++    this.name = 'ServerError'
++    this.status = status
++  }
++}
++
++async function call<T>(method: string, url: string, body?: unknown): Promise<T> {
++  const init: RequestInit = { method, credentials: 'same-origin', cache: 'no-store' }
++  if (body !== undefined) {
++    init.headers = { 'Content-Type': 'application/json' }
++    init.body = JSON.stringify(body)
++  }
++  let response: Response
++  try {
++    response = await fetch(url, init)
++  } catch (err) {
++    throw new ServerError(0, `The editor server is not reachable (${String(err)})`)
++  }
++  let data: any = null
++  try {
++    data = await response.json()
++  } catch {
++    // not JSON: the status text below is all we have
++  }
++  if (!response.ok) {
++    throw new ServerError(response.status, data?.error ?? response.statusText)
++  }
++  return data as T
++}
++
++export const server = {
++  workspace: () => call<WorkspacePayload>('GET', '/api/workspace'),
++  status: () => call<StatusPayload>('GET', '/api/status'),
++  saveFile: (path: string, text: string) =>
++    call<{ ok: boolean }>('PUT', `/api/file?path=${encodeURIComponent(path)}`, { text }),
++  validate: () => call<ValidatePayload>('POST', '/api/validate', {}),
++  format: () => call<FormatPayload>('POST', '/api/format', {}),
++  submit: (message: string) => call<SubmitPayload>('POST', '/api/submit', { message }),
++}
++
++export function errorMessage(err: unknown): string {
++  return err instanceof Error ? err.message : String(err)
++}
+diff --git a/apps/playground/src/state/playground-machine.ts b/apps/playground/src/state/playground-machine.ts
+index d644887..9f24e21 100644
+--- a/apps/playground/src/state/playground-machine.ts
++++ b/apps/playground/src/state/playground-machine.ts
+@@ -1,4 +1,5 @@
+-import { type Api, api } from '$/api'
++import { persistWorkspace } from '$/aac/saving'
++import type { Api } from '$/api'
+ import {
+   type aux,
+   type ComputedView,
+@@ -23,7 +24,6 @@ import {
+   raise,
+   setup,
+ } from 'xstate'
+-import { selectWorkspacePersistence } from './persistence'
+ import type { ShareOptions } from './shareOptions'
+ import type { LocalWorkspace, ShareHistoryItem, WithInput } from './types'
+ 
+@@ -138,10 +138,9 @@ export const playgroundMachine = setup({
+     tags: '' as 'sharing',
+   },
+   actors: {
+-    'call-share-api': fromPromise(async ({ input }: WithInput<Api.Share.Payload>) => {
+-      return await api.share.create({
+-        json: input,
+-      })
++    // Sharing needs the LikeC4 cloud worker, which this editor does not have.
++    'call-share-api': fromPromise(async (_: WithInput<Api.Share.Payload>): Promise<Api.Share.Response> => {
++      throw new Error('Sharing is not available in the model editor')
+     }),
+   },
+   actions: {
+@@ -311,14 +310,9 @@ export const playgroundMachine = setup({
+       }
+     }),
+ 
++    // Saves changed files to the editor server (this was a localStorage write).
+     'persist to storage': (({ context }) => {
+-      selectWorkspacePersistence(context.workspaceId).write({
+-        workspaceId: context.workspaceId,
+-        activeFilename: context.activeFilename,
+-        title: context.workspaceTitle,
+-        files: context.files,
+-        shareHistory: context.shareHistory,
+-      })
++      persistWorkspace({ files: context.files, activeFilename: context.activeFilename })
+     }),
+   },
+ }).createMachine({
+@@ -380,7 +374,7 @@ export const playgroundMachine = setup({
+               }),
+             }),
+             cancel('persist'),
+-            raise({ type: 'workspace.persist' }, { id: 'persist', delay: 1000 }),
++            raise({ type: 'workspace.persist' }, { id: 'persist', delay: 800 }),
+           ],
+         },
+         'workspace.changeActiveFile': {

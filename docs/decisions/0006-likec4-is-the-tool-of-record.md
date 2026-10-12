@@ -49,8 +49,9 @@ diagram.
 - Structurizr is not used again without a new ADR.
 - A LikeC4 upgrade bumps every pin together: the `justfile`, `tools/validate_models.py` and
   both editor Containerfiles.
-- The policy for the layout files `.likec4/*.likec4.snap` is decided in the editor-image task,
-  not here.
+- The policy for the layout files `.likec4/*.likec4.snap` is in
+  [ADR 0008](0008-layout-snap-policy.md): automatic layout by default, curated files only
+  through a reviewed PR, Submit commits `.c4` files only.
 - Risk: LikeC4 has one main maintainer. The model stays plain text in git, so a later move is
   possible but not free.
 - The image is 1.45 GB, so `just check` in CI pulls more than the 437 MB Structurizr image did.

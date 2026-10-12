@@ -5,3 +5,5 @@ __pycache__/
 .env
 .claude/settings.local.json
 build/
+# LikeC4 writes automatic layout snapshots here while a model is viewed (ADR 0008)
+.likec4/

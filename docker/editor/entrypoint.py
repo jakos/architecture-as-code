@@ -4,10 +4,12 @@ Environment (nothing is baked into the image):
   REPO_URL        what to clone (the PoC passes the local bare remote)
   MODEL_USER      who is editing; used in the branch name and as the git author
   MODEL_SLUG      short description of the change; used in the branch name
-  RENDERER        likec4
+  RENDERER        likec4 (not used, and not started, with EDITOR_UI=playground)
   MODEL_PATH      model directory inside the clone (for example examples/shop)
   PASSWORD        login password of the editor UI (code-server, or web_editor.py in web mode)
   EDITOR_UI       code-server (default) | web (tools/web_editor.py: text editor + live diagram)
+                  | playground (tools/web_editor.py serving the model editor build: the diagram
+                  renders in the browser, so no renderer process runs)
   RENDER_URL      web mode: URL of the renderer as the browser reaches it (iframe source)
   HMR_PORT        fixed port of the dev server's HMR websocket (default: automatic)
   SPARSE_EXCLUDE  optional, space-separated paths left out of the checkout
@@ -26,8 +28,9 @@ from pathlib import Path
 
 CODE_SERVER_PORT = 8080
 LIKEC4_PORT = 5173  # `likec4 start`; compose maps it
-EDITOR_UIS = ("code-server", "web")
+EDITOR_UIS = ("code-server", "web", "playground")
 WEB_EDITOR = "/usr/local/lib/poc/web_editor.py"
+STATIC_DIR = "/usr/local/share/model-editor"  # the built model editor (playground + our patches)
 SLUG_RE = re.compile(r"^[a-z0-9][a-z0-9-]*$")
 USER_RE = re.compile(r"^[a-z0-9][a-z0-9._-]*$")
 
@@ -109,9 +112,20 @@ def editor_ui(env: Mapping[str, str]) -> str:
     return ui
 
 
+def needs_renderer(env: Mapping[str, str]) -> bool:
+    """The playground UI renders in the browser; the other two need `likec4 start`."""
+    return editor_ui(env) != "playground"
+
+
 def editor_command(env: Mapping[str, str], model_dir: Path) -> list[str]:
     """The command that replaces this process: code-server by default, or the web editor."""
-    if editor_ui(env) == "code-server":
+    ui = editor_ui(env)
+    if ui == "playground":
+        return [
+            "python3", WEB_EDITOR, "--repo", str(model_dir), "--path", require(env, "MODEL_PATH"),
+            "--port", str(CODE_SERVER_PORT), "--static", STATIC_DIR,
+        ]  # fmt: skip
+    if ui == "code-server":
         return [
             "code-server", "--bind-addr", f"0.0.0.0:{CODE_SERVER_PORT}", "--auth", "password",
             "--disable-telemetry", "--disable-update-check", str(model_dir),
@@ -131,11 +145,12 @@ def main() -> int:
     env = os.environ
     try:
         require(env, "PASSWORD")
-        renderer = require(env, "RENDERER")
         model_path = require(env, "MODEL_PATH")
-        if renderer != "likec4":
-            raise SetupError(f"RENDERER '{renderer}' must be likec4")
-        editor_ui(env)
+        renderer = ""
+        if needs_renderer(env):
+            renderer = require(env, "RENDERER")
+            if renderer != "likec4":
+                raise SetupError(f"RENDERER '{renderer}' must be likec4")
         model_dir, branch = prepare_clone(env, datetime.date.today())
         command = editor_command(env, model_dir)
     except SetupError as err:
@@ -146,9 +161,14 @@ def main() -> int:
     if not workdir.is_dir():
         print(f"entrypoint: {workdir} does not exist in the clone", file=sys.stderr)
         return 1
-    cmd, extra = renderer_command(renderer, workdir, env)
-    print(f"editor ready on branch {branch}; rendering {model_path} with {renderer}", flush=True)
-    subprocess.Popen(cmd, cwd=workdir, env=renderer_env(env, extra))
+    if renderer:
+        cmd, extra = renderer_command(renderer, workdir, env)
+        print(
+            f"editor ready on branch {branch}; rendering {model_path} with {renderer}", flush=True
+        )
+        subprocess.Popen(cmd, cwd=workdir, env=renderer_env(env, extra))
+    else:
+        print(f"editor ready on branch {branch}; the browser renders {model_path}", flush=True)
     os.execvp(command[0], command)
 
 

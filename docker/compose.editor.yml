@@ -1,6 +1,8 @@
 # B1 editor PoC (local only): one editor per variant, each on a fresh clone of the local bare
 # remote build/poc-remote.git. Images come from `just editor-build`; start one with
-# `just editor-up TOOL=likec4` or `just editor-up TOOL=likec4-web`. All ports are bound to 127.0.0.1.
+# `just editor-up TOOL=likec4` or `just editor-up TOOL=likec4-web`; the model editor (playground
+# based) has its own image: `just model-editor-build`, then `just editor-up model-editor`.
+# All ports are bound to 127.0.0.1.
 # No values for PASSWORD etc. live here: they come from the environment (.env is
 # gitignored) and the entrypoint refuses to start without them.
 # Podman only: userns_mode keep-id has no Docker equivalent.
@@ -58,3 +60,24 @@ services:
     profiles: ["likec4-playground"]
     ports:
       - "127.0.0.1:8096:80"
+
+  # Model editor: the LikeC4 playground at a pinned tag plus our patch set (docker/editor/model-editor),
+  # served by tools/web_editor.py on a fresh clone. The diagram renders in the browser, so there is no
+  # renderer process and one port: page and API on 8097 (Basic auth, PASSWORD).
+  # Build with `just model-editor-build`, start with `just editor-up model-editor`.
+  editor-model-editor:
+    image: localhost/aac-model-editor:v1.59.4
+    container_name: poc-model-editor
+    profiles: ["model-editor"]
+    userns_mode: "keep-id:uid=1000,gid=1000"
+    ports:
+      - "127.0.0.1:8097:8080" # editor page + API
+    environment:
+      REPO_URL: /remote/repo.git
+      PASSWORD: ${PASSWORD:-}
+      MODEL_USER: ${MODEL_USER:-}
+      MODEL_SLUG: ${MODEL_SLUG:-}
+      SPARSE_EXCLUDE: ${SPARSE_EXCLUDE:-}
+    volumes:
+      - ../build/poc-remote.git:/remote/repo.git
+      - ../build/editor/model-editor/model:/home/coder/model

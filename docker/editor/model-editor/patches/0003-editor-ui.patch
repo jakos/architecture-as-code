@@ -1,0 +1,887 @@
+diff --git a/apps/playground/src/aac/AacEditorLayout.tsx b/apps/playground/src/aac/AacEditorLayout.tsx
+new file mode 100644
+index 0000000..ca3214f
+--- /dev/null
++++ b/apps/playground/src/aac/AacEditorLayout.tsx
+@@ -0,0 +1,304 @@
++import { usePlayground, usePlaygroundContext } from '$hooks/usePlayground'
++import {
++  ActionIcon,
++  Badge,
++  Box,
++  Group,
++  HoverCard,
++  NavLink,
++  ScrollArea,
++  Stack,
++  Text,
++  ThemeIcon,
++  Tooltip,
++} from '@mantine/core'
++import { useStore } from '@nanostores/react'
++import {
++  IconAlertCircle,
++  IconAlertTriangle,
++  IconChevronDown,
++  IconChevronRight,
++  IconFile,
++  IconInfoCircle,
++  IconX,
++} from '@tabler/icons-react'
++import { type PropsWithChildren, useEffect, useMemo } from 'react'
++import { $problems, applyMarkers, dropStaleProblems, revealInEditor } from './problems'
++import { type FileSaveState, type SaveStates, useSaveStates } from './saving'
++import { type Problem } from './server'
++
++type TreeNode = { name: string; path: string; children: TreeNode[]; file: boolean }
++
++/** Builds folders from the slash-separated paths of the model files. */
++export function buildTree(paths: string[]): TreeNode[] {
++  const root: TreeNode = { name: '', path: '', children: [], file: false }
++  for (const path of [...paths].sort()) {
++    const parts = path.split('/')
++    let node = root
++    parts.forEach((name, index) => {
++      const isFile = index === parts.length - 1
++      const fullPath = parts.slice(0, index + 1).join('/')
++      let child = node.children.find(c => c.name === name && c.file === isFile)
++      if (!child) {
++        child = { name, path: fullPath, children: [], file: isFile }
++        node.children.push(child)
++      }
++      node = child
++    })
++  }
++  const order = (nodes: TreeNode[]): TreeNode[] =>
++    nodes
++      .map(n => ({ ...n, children: order(n.children) }))
++      .sort((a, b) => Number(a.file) - Number(b.file) || a.name.localeCompare(b.name))
++  return order(root.children)
++}
++
++const stateColor: Record<FileSaveState, string> = {
++  saved: 'teal',
++  saving: 'blue',
++  unsaved: 'yellow',
++  error: 'red',
++}
++
++const stateLabel: Record<FileSaveState, string> = {
++  saved: 'Saved',
++  saving: 'Saving...',
++  unsaved: 'Unsaved changes',
++  error: 'Not saved',
++}
++
++export function SaveDot({ state, error }: { state: FileSaveState; error?: string | undefined }) {
++  if (state === 'saved') return null
++  return (
++    <Tooltip label={error ? `${stateLabel[state]}: ${error}` : stateLabel[state]} withArrow>
++      <Box
++        data-save-state={state}
++        w={8}
++        h={8}
++        style={{ borderRadius: '50%', background: `var(--mantine-color-${stateColor[state]}-6)` }} />
++    </Tooltip>
++  )
++}
++
++function problemCounts(items: Problem[]) {
++  const counts: Record<string, number> = {}
++  for (const item of items) {
++    if (item.path) counts[item.path] = (counts[item.path] ?? 0) + 1
++  }
++  return counts
++}
++
++function TreeItems({
++  nodes,
++  activeFilename,
++  saveStates,
++  counts,
++  onOpen,
++}: {
++  nodes: TreeNode[]
++  activeFilename: string
++  saveStates: SaveStates
++  counts: Record<string, number>
++  onOpen: (path: string) => void
++}) {
++  return (
++    <>
++      {nodes.map(node => {
++        if (!node.file) {
++          return (
++            <NavLink
++              key={node.path}
++              label={node.name}
++              fz="xs"
++              py={2}
++              defaultOpened
++              childrenOffset={12}
++              rightSection={<IconChevronRight size={12} />}>
++              <TreeItems
++                nodes={node.children}
++                activeFilename={activeFilename}
++                saveStates={saveStates}
++                counts={counts}
++                onOpen={onOpen} />
++            </NavLink>
++          )
++        }
++        const state = saveStates.byFile[node.path] ?? 'saved'
++        const problemCount = counts[node.path] ?? 0
++        return (
++          <NavLink
++            key={node.path}
++            label={node.name}
++            title={node.path}
++            fz="xs"
++            py={2}
++            active={node.path === activeFilename}
++            leftSection={<IconFile size={14} />}
++            rightSection={
++              <Group gap={6} wrap="nowrap">
++                {problemCount > 0 && <Badge size="xs" color="red" variant="light">{problemCount}</Badge>}
++                <SaveDot state={state} error={saveStates.errors[node.path]} />
++              </Group>
++            }
++            onClick={() => onOpen(node.path)} />
++        )
++      })}
++    </>
++  )
++}
++
++function FileTree() {
++  const playground = usePlayground()
++  const files = usePlaygroundContext(s => s.files)
++  const activeFilename = usePlaygroundContext(s => s.activeFilename)
++  const saveStates = useSaveStates(files)
++  const problems = useStore($problems)
++  const tree = useMemo(() => buildTree(Object.keys(files)), [Object.keys(files).join('\n')])
++  const counts = useMemo(() => problemCounts(problems.items), [problems.items])
++
++  useEffect(() => {
++    dropStaleProblems(files)
++  }, [files])
++
++  return (
++    <ScrollArea h="100%" type="auto" data-testid="file-tree">
++      <Text fz={10} fw={600} c="dimmed" px="xs" pt={6} pb={2} tt="uppercase">Model files</Text>
++      <TreeItems
++        nodes={tree}
++        activeFilename={activeFilename}
++        saveStates={saveStates}
++        counts={counts}
++        onOpen={path => {
++          revealInEditor(path, null)
++          playground.changeActiveFile(path)
++        }} />
++    </ScrollArea>
++  )
++}
++
++function OpenFileBar() {
++  const files = usePlaygroundContext(s => s.files)
++  const activeFilename = usePlaygroundContext(s => s.activeFilename)
++  const diagnosticErrors = usePlaygroundContext(s => s.diagnosticErrors)
++  const saveStates = useSaveStates(files)
++  const state = saveStates.byFile[activeFilename] ?? 'saved'
++  return (
++    <Group h={30} px="xs" gap="xs" justify="space-between" wrap="nowrap" style={{ flexShrink: 0 }}>
++      <Group gap={8} wrap="nowrap">
++        <Text fz="xs" fw={500} truncate>{activeFilename}</Text>
++        <Badge size="xs" variant="light" tt="none" color={stateColor[state]} data-testid="file-save-state">
++          {stateLabel[state]}
++        </Badge>
++      </Group>
++      {diagnosticErrors.length > 0 && (
++        <HoverCard position="bottom-end">
++          <HoverCard.Target>
++            <ThemeIcon color="red" size="sm" radius="sm">
++              <IconAlertTriangle size={14} />
++            </ThemeIcon>
++          </HoverCard.Target>
++          <HoverCard.Dropdown p="xs" maw={480}>
++            <Stack gap={4}>
++              {diagnosticErrors.map((error, i) => <Text component="div" c="red.7" key={i} fz="sm">{error}</Text>)}
++            </Stack>
++          </HoverCard.Dropdown>
++        </HoverCard>
++      )}
++    </Group>
++  )
++}
++
++function ProblemsPanel() {
++  const playground = usePlayground()
++  const state = useStore($problems)
++  if (state.ok === null && !state.failure) return null
++
++  const open = state.open
++  const toggle = () => $problems.set({ ...state, open: !open })
++  const count = state.items.length
++  return (
++    <Box
++      data-testid="problems-panel"
++      style={{ flexShrink: 0, borderTop: '1px solid var(--mantine-color-default-border)' }}>
++      <Group h={28} px="xs" justify="space-between" onClick={toggle} style={{ cursor: 'pointer' }}>
++        <Group gap={6}>
++          {open ? <IconChevronDown size={14} /> : <IconChevronRight size={14} />}
++          <Text fz="xs" fw={600}>Problems</Text>
++          <Badge size="xs" color={count > 0 ? 'red' : 'teal'} variant="light">{count}</Badge>
++        </Group>
++        <ActionIcon
++          size="xs"
++          variant="subtle"
++          color="gray"
++          aria-label="Clear problems"
++          onClick={e => {
++            e.stopPropagation()
++            $problems.set({ ...state, items: [], ok: null, failure: null, open: false })
++            applyMarkers([])
++          }}>
++          <IconX size={12} />
++        </ActionIcon>
++      </Group>
++      {open && (
++        <ScrollArea.Autosize mah={180} type="auto">
++          <Stack gap={0} pb={4}>
++            {state.failure && (
++              <Group px="xs" py={2} gap={6} wrap="nowrap">
++                <IconAlertCircle size={14} color="var(--mantine-color-red-6)" />
++                <Text fz="xs" c="red">{state.failure}</Text>
++              </Group>
++            )}
++            {!state.failure && count === 0 && (
++              <Group px="xs" py={2} gap={6}>
++                <IconInfoCircle size={14} />
++                <Text fz="xs" c="dimmed">No problems found.</Text>
++              </Group>
++            )}
++            {state.items.map((problem, i) => (
++              <Group
++                key={i}
++                px="xs"
++                py={2}
++                gap={6}
++                wrap="nowrap"
++                align="flex-start"
++                data-testid="problem-row"
++                style={{ cursor: problem.path ? 'pointer' : 'default' }}
++                onClick={() => {
++                  if (!problem.path) return
++                  revealInEditor(problem.path, problem.line)
++                  playground.changeActiveFile(problem.path)
++                }}>
++                <IconAlertCircle
++                  size={14}
++                  style={{ flexShrink: 0, marginTop: 2 }}
++                  color={`var(--mantine-color-${problem.severity === 'error' ? 'red' : 'yellow'}-6)`} />
++                <Text fz="xs" style={{ whiteSpace: 'pre-wrap' }}>
++                  {problem.path ? <b>{problem.path}{problem.line ? `:${problem.line}` : ''}</b> : null}
++                  {problem.path ? '  ' : ''}
++                  {problem.message}
++                </Text>
++              </Group>
++            ))}
++          </Stack>
++        </ScrollArea.Autosize>
++      )}
++    </Box>
++  )
++}
++
++/** File tree on the left, the editor (children) with its file bar and problems list on the right. */
++export function AacEditorLayout({ children }: PropsWithChildren) {
++  return (
++    <Group h="100%" gap={0} wrap="nowrap" align="stretch">
++      <Box w={230} style={{ flexShrink: 0, borderRight: '1px solid var(--mantine-color-default-border)' }}>
++        <FileTree />
++      </Box>
++      <Stack flex={1} gap={0} style={{ minWidth: 0 }}>
++        <OpenFileBar />
++        <Stack flex={1} gap={0} style={{ minHeight: 0 }}>{children}</Stack>
++        <ProblemsPanel />
++      </Stack>
++    </Group>
++  )
++}
+diff --git a/apps/playground/src/aac/AacHeader.tsx b/apps/playground/src/aac/AacHeader.tsx
+new file mode 100644
+index 0000000..8e70186
+--- /dev/null
++++ b/apps/playground/src/aac/AacHeader.tsx
+@@ -0,0 +1,204 @@
++import { usePlayground, usePlaygroundContext } from '$hooks/usePlayground'
++import { ActionIcon, Badge, Button, Group, Text, Tooltip } from '@mantine/core'
++import { modals } from '@mantine/modals'
++import { useStore } from '@nanostores/react'
++import {
++  IconAlertCircle,
++  IconCheck,
++  IconGitBranch,
++  IconInfoCircle,
++  IconLoader2,
++  IconShieldCheck,
++  IconUpload,
++  IconWand,
++} from '@tabler/icons-react'
++import { useEffect, useState } from 'react'
++import { ColorSchemeToggle } from '../components/ColorSchemeToggle'
++import { AboutContent } from './AboutContent'
++import { $problems, runValidate } from './problems'
++import { dirtyFiles, saveAll, useSaveStates } from './saving'
++import { errorMessage, server } from './server'
++import { SubmitForm } from './SubmitForm'
++
++function useBranch() {
++  const [branch, setBranch] = useState<string | null>(null)
++  useEffect(() => {
++    server.status().then(s => setBranch(s.branch), () => setBranch(null))
++  }, [])
++  return branch
++}
++
++const overallText = {
++  saved: 'All changes saved',
++  saving: 'Saving...',
++  unsaved: 'Unsaved changes',
++  error: 'Not saved - press Ctrl+S to retry',
++} as const
++
++function SaveIndicator() {
++  const playground = usePlayground()
++  const files = usePlaygroundContext(s => s.files)
++  const { overall, errors } = useSaveStates(files)
++  const firstError = Object.values(errors)[0]
++  const icon = overall === 'saved'
++    ? <IconCheck size={14} color="var(--mantine-color-teal-6)" />
++    : overall === 'error'
++    ? <IconAlertCircle size={14} color="var(--mantine-color-red-6)" />
++    : <IconLoader2 size={14} />
++  return (
++    <Tooltip label={firstError ?? overallText[overall]} withArrow>
++      <Group
++        gap={6}
++        wrap="nowrap"
++        data-testid="save-indicator"
++        data-save-state={overall}
++        style={{ cursor: overall === 'error' ? 'pointer' : 'default' }}
++        onClick={() => overall === 'error' && void saveAll(playground.getContext().files)}>
++        {icon}
++        <Text fz="xs" c={overall === 'error' ? 'red' : 'dimmed'}>{overallText[overall]}</Text>
++      </Group>
++    </Tooltip>
++  )
++}
++
++/** Ctrl/Cmd+S saves now; leaving the page with unsaved changes asks first. */
++function useSaveShortcuts() {
++  const playground = usePlayground()
++  useEffect(() => {
++    const onKeyDown = (event: KeyboardEvent) => {
++      if ((event.ctrlKey || event.metaKey) && !event.shiftKey && !event.altKey && event.key.toLowerCase() === 's') {
++        event.preventDefault()
++        void saveAll(playground.getContext().files)
++      }
++    }
++    const onBeforeUnload = (event: BeforeUnloadEvent) => {
++      if (dirtyFiles(playground.getContext().files).length > 0) {
++        event.preventDefault()
++        event.returnValue = ''
++      }
++    }
++    window.addEventListener('keydown', onKeyDown)
++    window.addEventListener('beforeunload', onBeforeUnload)
++    return () => {
++      window.removeEventListener('keydown', onKeyDown)
++      window.removeEventListener('beforeunload', onBeforeUnload)
++    }
++  }, [playground])
++}
++
++export function AacHeader() {
++  const playground = usePlayground()
++  const branch = useBranch()
++  const problems = useStore($problems)
++  const [busy, setBusy] = useState<null | 'format'>(null)
++  const [message, setMessage] = useState<string | null>(null)
++  useSaveShortcuts()
++
++  useEffect(() => {
++    if (!message) return
++    const timer = setTimeout(() => setMessage(null), 5000)
++    return () => clearTimeout(timer)
++  }, [message])
++
++  const validate = async () => {
++    const files = playground.getContext().files
++    if (!(await saveAll(files))) {
++      setMessage('Not validated: some files could not be saved')
++      return
++    }
++    await runValidate(files)
++    const state = $problems.get()
++    setMessage(state.failure ? 'Validate failed' : state.items.length === 0 ? 'No problems found' : null)
++  }
++
++  const format = async () => {
++    setBusy('format')
++    try {
++      if (!(await saveAll(playground.getContext().files))) {
++        setMessage('Not formatted: some files could not be saved')
++        return
++      }
++      const result = await server.format()
++      if (!result.ok) {
++        setMessage('Format failed - see Validate for the problems')
++        return
++      }
++      if (result.changed.length === 0) {
++        setMessage('Already formatted')
++        return
++      }
++      setMessage(`Formatted ${result.changed.length} file(s), reloading`)
++      // The formatted text lives on the server: loading the workspace again is the simplest
++      // way to bring every editor model and the language server in line with it.
++      window.location.reload()
++    } catch (err) {
++      setMessage(`Format failed: ${errorMessage(err)}`)
++    } finally {
++      setBusy(null)
++    }
++  }
++
++  const openSubmit = () =>
++    modals.open({
++      title: 'Submit for review',
++      size: 'lg',
++      radius: 'xs',
++      children: <SubmitForm getFiles={() => playground.getContext().files} onDone={() => modals.closeAll()} />,
++    })
++
++  const openAbout = () =>
++    modals.open({
++      title: 'About this editor',
++      size: 'md',
++      radius: 'xs',
++      children: <AboutContent />,
++    })
++
++  return (
++    <Group h="100%" px="md" justify="space-between" align="center" wrap="nowrap">
++      <Group gap="md" align="center" wrap="nowrap">
++        <Group gap={6} align="baseline" wrap="nowrap">
++          <Text fw={700} fz="md">Model editor</Text>
++          <Text fz={10} c="dimmed" visibleFrom="md">based on LikeC4</Text>
++        </Group>
++        <Tooltip label="The branch your changes go to" withArrow>
++          <Badge
++            variant="light"
++            color="gray"
++            leftSection={<IconGitBranch size={12} />}
++            tt="none"
++            data-testid="branch-indicator">
++            {branch ?? '...'}
++          </Badge>
++        </Tooltip>
++        <SaveIndicator />
++      </Group>
++      <Group gap="xs" wrap="nowrap">
++        {message && <Text fz="xs" c="dimmed" data-testid="header-message">{message}</Text>}
++        <Button
++          size="xs"
++          variant="default"
++          leftSection={<IconShieldCheck size={14} />}
++          loading={problems.running}
++          onClick={() => void validate()}>
++          Validate
++        </Button>
++        <Button
++          size="xs"
++          variant="default"
++          leftSection={<IconWand size={14} />}
++          loading={busy === 'format'}
++          onClick={() => void format()}>
++          Format
++        </Button>
++        <Button size="xs" leftSection={<IconUpload size={14} />} onClick={openSubmit}>
++          Submit
++        </Button>
++        <ColorSchemeToggle />
++        <ActionIcon variant="subtle" color="gray" size="md" aria-label="About" onClick={openAbout}>
++          <IconInfoCircle size={18} stroke={1.5} />
++        </ActionIcon>
++      </Group>
++    </Group>
++  )
++}
+diff --git a/apps/playground/src/aac/AboutContent.tsx b/apps/playground/src/aac/AboutContent.tsx
+new file mode 100644
+index 0000000..a5a3630
+--- /dev/null
++++ b/apps/playground/src/aac/AboutContent.tsx
+@@ -0,0 +1,21 @@
++import { Anchor, Stack, Text } from '@mantine/core'
++
++/** The attribution LikeC4's MIT license asks for; the full text is served next to the app. */
++export function AboutContent() {
++  return (
++    <Stack gap="xs">
++      <Text fz="sm">
++        This model editor edits the LikeC4 model of your team in a git branch. Your changes are saved to the branch on
++        the editor server and go to review when you press Submit.
++      </Text>
++      <Text fz="sm">
++        It is based on the LikeC4 playground (<Anchor href="https://likec4.dev" target="_blank">likec4.dev</Anchor>),
++        version 1.59.4, with our changes applied as a patch set. LikeC4 is MIT licensed, Copyright (c) 2023-2026 Denis
++        Davydkov.
++      </Text>
++      <Text fz="sm">
++        <Anchor href="/LICENSE-LikeC4.txt" target="_blank">LikeC4 license text</Anchor>
++      </Text>
++    </Stack>
++  )
++}
+diff --git a/apps/playground/src/aac/SubmitForm.tsx b/apps/playground/src/aac/SubmitForm.tsx
+new file mode 100644
+index 0000000..b73e903
+--- /dev/null
++++ b/apps/playground/src/aac/SubmitForm.tsx
+@@ -0,0 +1,123 @@
++import { Alert, Button, Code, CopyButton, Group, List, Stack, Text, Textarea } from '@mantine/core'
++import { IconAlertCircle, IconCheck } from '@tabler/icons-react'
++import { useEffect, useState } from 'react'
++import { saveAll } from './saving'
++import { errorMessage, server, ServerError, type SubmitPayload } from './server'
++
++/** Pulls the printed `gh pr create ...` line out of the submit output. */
++export function prCommandFrom(output: string): string | null {
++  const line = output.split('\n').find(l => l.trim().startsWith('gh pr create'))
++  return line ? line.trim() : null
++}
++
++/** Rendered inside a Mantine modal, i.e. outside the playground state provider: files come in as a getter. */
++export function SubmitForm({ getFiles, onDone }: { getFiles: () => Record<string, string>; onDone: () => void }) {
++  const [changes, setChanges] = useState<string[] | null>(null)
++  const [branch, setBranch] = useState('')
++  const [message, setMessage] = useState('')
++  const [busy, setBusy] = useState(false)
++  const [error, setError] = useState<string | null>(null)
++  const [result, setResult] = useState<SubmitPayload | null>(null)
++
++  useEffect(() => {
++    // Save first so the list shows what will really be committed.
++    void saveAll(getFiles())
++      .then(() => server.status())
++      .then(s => {
++        setChanges(s.changes)
++        setBranch(s.branch)
++      })
++      .catch(err => setError(errorMessage(err)))
++  }, [])
++
++  const submit = async () => {
++    setBusy(true)
++    setError(null)
++    try {
++      if (!(await saveAll(getFiles()))) {
++        setError('Some files could not be saved, so nothing was submitted. Fix that and try again.')
++        return
++      }
++      setResult(await server.submit(message.trim()))
++    } catch (err) {
++      setError(err instanceof ServerError ? err.message : errorMessage(err))
++    } finally {
++      setBusy(false)
++    }
++  }
++
++  if (result) {
++    const command = prCommandFrom(result.output)
++    return (
++      <Stack gap="sm" data-testid="submit-result">
++        <Alert color="teal" icon={<IconCheck size={16} />} title="Submitted">
++          Your changes are on the branch {branch ? <Code>{branch}</Code> : null}. Open a pull request to get them
++          reviewed.
++        </Alert>
++        {result.skipped.length > 0 && (
++          <Stack gap={4} data-testid="submit-skipped">
++            <Text fz="sm" fw={500}>Not included (only .c4 model files are submitted)</Text>
++            <List size="xs" spacing={2}>
++              {result.skipped.map(path => <List.Item key={path}>{path}</List.Item>)}
++            </List>
++          </Stack>
++        )}
++        {command && (
++          <Stack gap={4}>
++            <Text fz="sm" fw={500}>Command that opens the pull request</Text>
++            <Group gap="xs" wrap="nowrap" align="flex-start">
++              <Code block style={{ flex: 1, whiteSpace: 'pre-wrap' }}>{command}</Code>
++              <CopyButton value={command}>
++                {({ copied, copy }) => (
++                  <Button size="xs" variant="default" onClick={copy}>{copied ? 'Copied' : 'Copy'}</Button>
++                )}
++              </CopyButton>
++            </Group>
++          </Stack>
++        )}
++        <Text fz="sm" fw={500}>Output</Text>
++        <Code block style={{ whiteSpace: 'pre-wrap' }} data-testid="submit-output">{result.output}</Code>
++        <Group justify="flex-end">
++          <Button onClick={onDone}>Close</Button>
++        </Group>
++      </Stack>
++    )
++  }
++
++  return (
++    <Stack gap="sm">
++      <Text fz="sm">
++        Branch: <Code>{branch || '...'}</Code>. Submit checks the model, commits your changed model files and sends
++        them to this branch. It never touches main.
++      </Text>
++      <Stack gap={4}>
++        <Text fz="sm" fw={500}>Changed files</Text>
++        {changes === null && <Text fz="xs" c="dimmed">Loading...</Text>}
++        {changes !== null && changes.length === 0 && <Text fz="xs" c="dimmed">No changes yet.</Text>}
++        {changes !== null && changes.length > 0 && (
++          <List size="xs" spacing={2} data-testid="submit-changes">
++            {changes.map(line => <List.Item key={line}>{line}</List.Item>)}
++          </List>
++        )}
++      </Stack>
++      <Textarea
++        label="Describe your change"
++        description="Becomes the commit message and the pull request title."
++        placeholder="For example: add the notification service"
++        data-autofocus
++        autosize
++        minRows={2}
++        value={message}
++        onChange={e => setMessage(e.currentTarget.value)} />
++      {error && (
++        <Alert color="red" icon={<IconAlertCircle size={16} />} title="Not submitted" data-testid="submit-error">
++          <Code block style={{ whiteSpace: 'pre-wrap' }}>{error}</Code>
++        </Alert>
++      )}
++      <Group justify="flex-end">
++        <Button variant="default" onClick={onDone}>Cancel</Button>
++        <Button loading={busy} onClick={() => void submit()}>Submit for review</Button>
++      </Group>
++    </Stack>
++  )
++}
+diff --git a/apps/playground/src/aac/problems.ts b/apps/playground/src/aac/problems.ts
+new file mode 100644
+index 0000000..890f9c7
+--- /dev/null
++++ b/apps/playground/src/aac/problems.ts
+@@ -0,0 +1,107 @@
++import * as monaco from '@codingame/monaco-vscode-editor-api'
++import { atom } from 'nanostores'
++import { errorMessage, type Problem, server, type ToolResult } from './server'
++
++const MARKER_OWNER = 'aac-validate'
++
++export type ProblemsState = {
++  items: Problem[]
++  results: ToolResult[]
++  running: boolean
++  /** null until Validate has run once */
++  ok: boolean | null
++  failure: string | null
++  open: boolean
++  /** File text at the time of validation, to drop problems of files edited since. */
++  validatedTexts: Record<string, string>
++}
++
++export const $problems = atom<ProblemsState>({
++  items: [],
++  results: [],
++  running: false,
++  ok: null,
++  failure: null,
++  open: false,
++  validatedTexts: {},
++})
++
++const markerSeverity = (severity: Problem['severity']) =>
++  severity === 'error'
++    ? monaco.MarkerSeverity.Error
++    : severity === 'warning'
++    ? monaco.MarkerSeverity.Warning
++    : monaco.MarkerSeverity.Info
++
++/** Replaces the markers of this module (the language server's own markers are untouched). */
++export function applyMarkers(items: Problem[]) {
++  const byPath = new Map<string, Problem[]>()
++  for (const item of items) {
++    if (item.path === null) continue
++    byPath.set(item.path, [...(byPath.get(item.path) ?? []), item])
++  }
++  for (const model of monaco.editor.getModels()) {
++    const path = model.uri.path.slice(1)
++    const mine = byPath.get(path) ?? []
++    monaco.editor.setModelMarkers(
++      model,
++      MARKER_OWNER,
++      mine.map(problem => {
++        const line = Math.min(Math.max(problem.line ?? 1, 1), model.getLineCount())
++        return {
++          severity: markerSeverity(problem.severity),
++          message: problem.message,
++          startLineNumber: line,
++          startColumn: problem.column ?? 1,
++          endLineNumber: line,
++          endColumn: problem.column ? problem.column + 1 : model.getLineMaxColumn(line),
++          source: 'likec4 validate',
++        }
++      }),
++    )
++  }
++}
++
++export async function runValidate(files: Record<string, string>) {
++  $problems.set({ ...$problems.get(), running: true, failure: null })
++  try {
++    const result = await server.validate()
++    $problems.set({
++      items: result.problems,
++      results: result.results,
++      running: false,
++      ok: result.ok,
++      failure: null,
++      open: result.problems.length > 0 || !result.ok,
++      validatedTexts: { ...files },
++    })
++    applyMarkers(result.problems)
++  } catch (err) {
++    $problems.set({ ...$problems.get(), running: false, failure: errorMessage(err), open: true })
++  }
++}
++
++/** Forgets problems (and their markers) of files whose text changed since the last validation. */
++export function dropStaleProblems(files: Record<string, string>) {
++  const state = $problems.get()
++  if (state.items.length === 0) return
++  const items = state.items.filter(
++    p => p.path === null || state.validatedTexts[p.path] === files[p.path],
++  )
++  if (items.length === state.items.length) return
++  $problems.set({ ...state, items })
++  applyMarkers(items)
++}
++
++export function revealInEditor(path: string, line: number | null) {
++  const model = monaco.editor.getModel(monaco.Uri.file(path))
++  const editor = monaco.editor.getEditors()[0]
++  if (!model || !editor) return
++  editor.setModel(model)
++  if (line) {
++    const lineNumber = Math.min(line, model.getLineCount())
++    editor.setPosition({ lineNumber, column: 1 })
++    editor.revealLineInCenter(lineNumber)
++  }
++  editor.focus()
++}
+diff --git a/apps/playground/src/routes/index.tsx b/apps/playground/src/routes/index.tsx
+index b966e46..1fb7b0f 100644
+--- a/apps/playground/src/routes/index.tsx
++++ b/apps/playground/src/routes/index.tsx
+@@ -6,6 +6,6 @@ import { createFileRoute, Navigate } from '@tanstack/react-router'
+ 
+ export const Route = createFileRoute('/')({
+   component: () => {
+-    return <Navigate to="/w/$workspaceId/" params={{ workspaceId: 'tutorial' }} />
++    return <Navigate to="/w/$workspaceId/" params={{ workspaceId: 'model' }} />
+   },
+ })
+diff --git a/apps/playground/src/routes/w.$workspaceId/route.tsx b/apps/playground/src/routes/w.$workspaceId/route.tsx
+index 82ca222..0df2d6a 100644
+--- a/apps/playground/src/routes/w.$workspaceId/route.tsx
++++ b/apps/playground/src/routes/w.$workspaceId/route.tsx
+@@ -1,15 +1,16 @@
+ import { MonacoEditor } from '$/monaco'
+-import { Header } from '$components/appshell/Header'
++import { AacEditorLayout } from '$/aac/AacEditorLayout'
++import { AacHeader } from '$/aac/AacHeader'
++import { initSaved, recallActiveFile } from '$/aac/saving'
++import { server } from '$/aac/server'
+ import {
+   type LayoutedModelApi,
+   DrawioContextMenuProvider,
+   useDrawioContextMenu,
+ } from '$components/drawio/DrawioContextMenuProvider'
+-import { WorkspaceFileTabs } from '$components/workspace/WorkspaceFileTabs'
+ import { PlaygroundActorContextProvider } from '$state/context'
+-import { WorkspacePersistence, WorkspaceSessionPersistence } from '$state/persistence'
+ import { css } from '@likec4/styles/css'
+-import { AppShell, AppShellHeader, AppShellMain, Box, Stack } from '@mantine/core'
++import { AppShell, AppShellHeader, AppShellMain, Box } from '@mantine/core'
+ import { useMediaQuery } from '@mantine/hooks'
+ import { createFileRoute, Outlet } from '@tanstack/react-router'
+ import { useState } from 'react'
+@@ -18,30 +19,20 @@ import * as styles from '../styles.css'
+ 
+ export const Route = createFileRoute('/w/$workspaceId')({
+   component: WorkspaceContextPage,
++  // The workspace is the model on the editor server. It is read once; later saves go back to the server.
++  staleTime: Infinity,
+   loader: async ({ params }): Promise<{
+     workspaceId: string
+     activeFilename: string
+     title: string
+     files: Record<string, string>
+   }> => {
+-    const { Examples } = await import('$/examples')
+-    const id = params.workspaceId as keyof typeof Examples
+-    const example = Examples[id]
+-    if (example) {
+-      return WorkspaceSessionPersistence.read(id) ?? {
+-        workspaceId: id,
+-        activeFilename: example.currentFilename,
+-        title: example.title,
+-        files: {
+-          ...example.files,
+-        },
+-      }
+-    }
+-    return WorkspacePersistence.read(id) ?? {
+-      workspaceId: id,
+-      activeFilename: Examples.blank.currentFilename,
+-      ...Examples.blank,
+-    }
++    const { files } = await server.workspace()
++    initSaved(files)
++    const names = Object.keys(files)
++    const remembered = recallActiveFile()
++    const activeFilename = [remembered, 'views/index.c4', names[0]].find(n => n != null && n in files) ?? ''
++    return { workspaceId: params.workspaceId, activeFilename, title: 'Model', files }
+   },
+ })
+ 
+@@ -61,7 +52,7 @@ function WorkspaceContextPage() {
+       <DrawioContextMenuProvider layoutedModelApi={layoutedModelApi}>
+         <AppShell header={{ height: 50 }}>
+           <AppShellHeader>
+-            <Header />
++            <AacHeader />
+           </AppShellHeader>
+           <AppShellMain h={'100dvh'}>
+             <Group
+@@ -75,10 +66,9 @@ function WorkspaceContextPage() {
+                 collapsible={true}
+                 minSize={'10'}
+                 defaultSize={'60'}>
+-                <Stack h="100%" gap={0}>
+-                  <WorkspaceFileTabs />
++                <AacEditorLayout>
+                   <EditorPanelWithDrawioMenu setLayoutedModelApi={setLayoutedModelApi} />
+-                </Stack>
++                </AacEditorLayout>
+               </Panel>
+               <Separator
+                 className={styles.resize}

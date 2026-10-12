@@ -5,6 +5,11 @@ benchmark. Follows [likec4-trial-poc.md](likec4-trial-poc.md) after the owner te
 and asked three things. The owner decides after reading this; nothing here changes
 [ADR 0005](../decisions/0005-trial-likec4-for-the-editor-path.md).
 
+Follow-up (2026-10-11): the richer editor named in the recommendation below was built on the
+playground source, see [likec4-editor-image.md](likec4-editor-image.md) and
+[ADR 0007](../decisions/0007-model-editor-on-likec4-playground.md); the `.snap` question is
+answered in [ADR 0008](../decisions/0008-layout-snap-policy.md).
+
 Scope (owner edit, 2026-10-10): **editing only**, on the local setup. Hosted git providers,
 how the model reaches a hosted container and a branch-selectable viewer are deferred (see
 [Deferred to a later task](#deferred-to-a-later-task)).

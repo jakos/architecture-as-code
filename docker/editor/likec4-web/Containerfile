@@ -21,8 +21,8 @@ RUN mkdir -p /usr/local/lib/node_modules/likec4/node_modules/.vite \
       > /usr/local/bin/submit \
     && chmod 0755 /usr/local/bin/submit
 
-COPY tools/submit.py tools/poc_remote.py tools/web_editor.py tools/web_editor.html \
-     docker/editor/entrypoint.py /usr/local/lib/poc/
+COPY tools/submit.py tools/model_source.py tools/poc_remote.py tools/web_editor.py \
+     tools/web_editor.html docker/editor/entrypoint.py /usr/local/lib/poc/
 
 USER coder
 WORKDIR /home/coder

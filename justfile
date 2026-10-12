@@ -52,17 +52,26 @@ playground-build:
 playground-up:
     {{editor_compose}} --profile likec4-playground up -d likec4-playground
 
+# Model editor image: the LikeC4 playground at tag v1.59.4 plus our patches (separate from editor-build:
+# needs GitHub and npm, takes minutes)
+model-editor-build:
+    {{engine}} build -f docker/editor/model-editor/Containerfile -t localhost/aac-model-editor:v1.59.4 .
+
+# Size of the model editor's patch set against the playground (lines changed in upstream files)
+playground-patches-stat:
+    uv run --locked python tools/playground_patches.py stat docker/editor/model-editor/patches
+
 # B1 editor PoC (Podman only): snapshot the working tree and seed the local bare remote build/poc-remote.git
 poc-remote:
     uv run --locked python tools/poc_remote.py snapshot . build/poc-seed
     {{engine}} run --rm --userns=keep-id:uid=1000,gid=1000 -v "./build:/build" --entrypoint python3 localhost/aac-editor-likec4:poc /usr/local/lib/poc/poc_remote.py seed /build/poc-seed /build/poc-remote.git
 
 # B1 editor PoC: start one editor on a fresh clone of build/poc-remote.git. Podman only (userns keep-id).
-# Usage: `just editor-up TOOL=likec4` or `TOOL=likec4-web` for the editing service (also `just editor-up likec4`, `just TOOL=likec4 editor-up`).
+# Usage: `just editor-up TOOL=likec4` or `TOOL=likec4-web` for the editing service (also `just editor-up likec4`, `just TOOL=likec4 editor-up`), or `just editor-up model-editor` for the playground-based model editor.
 # Needs PASSWORD, MODEL_USER, MODEL_SLUG in the environment or .env (see .env.example).
 editor-up tool=TOOL:
     uv run --locked python -c "import os, shutil, pathlib; p = pathlib.Path('build/editor/{{trim_start_match(tool, 'TOOL=')}}/model'); shutil.rmtree(p, onexc=lambda f, q, e: (os.chmod(q, 0o700), f(q))) if p.exists() else None; p.mkdir(parents=True)"
     {{editor_compose}} --profile {{trim_start_match(tool, 'TOOL=')}} up -d --force-recreate
 
 editor-down:
-    {{editor_compose}} --profile likec4 --profile likec4-web --profile likec4-playground down
+    {{editor_compose}} --profile likec4 --profile likec4-web --profile likec4-playground --profile model-editor down

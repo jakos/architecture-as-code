@@ -57,3 +57,30 @@ def test_renderer_env_has_no_password():
     assert "PASSWORD" not in env
     assert env["PATH"] == "/bin"
     assert env["CHOKIDAR_USEPOLLING"] == "true"
+
+
+def test_editor_command_playground_serves_static():
+    env = {"EDITOR_UI": "playground", "MODEL_PATH": "examples/shop"}
+    cmd = entrypoint.editor_command(env, MODEL_DIR)
+    assert cmd[:2] == ["python3", "/usr/local/lib/poc/web_editor.py"]
+    assert cmd[cmd.index("--repo") + 1] == str(MODEL_DIR)
+    assert cmd[cmd.index("--path") + 1] == "examples/shop"
+    assert cmd[cmd.index("--port") + 1] == "8080"
+    assert cmd[cmd.index("--static") + 1] == "/usr/local/share/model-editor"
+    assert "code-server" not in cmd
+
+
+def test_playground_mode_starts_no_renderer():
+    assert entrypoint.needs_renderer({"EDITOR_UI": "playground"}) is False
+    assert entrypoint.needs_renderer({"EDITOR_UI": "web"}) is True
+    assert entrypoint.needs_renderer({}) is True  # code-server is the default
+    with pytest.raises(entrypoint.SetupError, match="EDITOR_UI"):
+        entrypoint.needs_renderer({"EDITOR_UI": "vim"})
+
+
+def test_playground_mode_needs_no_render_url():
+    env = {"EDITOR_UI": "playground", "MODEL_PATH": "examples/shop"}
+    cmd = entrypoint.editor_command(env, MODEL_DIR)  # no RENDER_URL, no error
+    assert "--render-url" not in cmd
+    with pytest.raises(entrypoint.SetupError, match="MODEL_PATH"):
+        entrypoint.editor_command({"EDITOR_UI": "playground"}, MODEL_DIR)

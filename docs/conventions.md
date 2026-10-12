@@ -66,5 +66,7 @@ Where projects live:
 ## Layout files
 
 Dragging an element in the "Edit" mode of `likec4 start` writes `.likec4/<view>.likec4.snap`
-into the project. Whether to commit or ignore these files is open; it is decided in the
-editor-image task.
+into the project, and merely viewing a model with `likec4 start` can write one too. Layout is
+automatic by default: `.gitignore` ignores `.likec4/`, the model editor's Submit commits only
+`.c4` files and lists what it skipped, and a hand-placed (curated) layout enters git only
+through a reviewed PR with `git add -f`. See [ADR 0008](decisions/0008-layout-snap-policy.md).

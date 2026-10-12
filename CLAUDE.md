@@ -45,8 +45,8 @@ just down         # stop up and site
 ## Conventions
 
 - The LikeC4 version is pinned in `justfile` (`likec4_image`), `tools/validate_models.py`
-  (`IMAGE`) and both editor Containerfiles (npm package and VS Code extension); bump all
-  together.
+  (`IMAGE`) and the three editor Containerfiles (npm package, VS Code extension, and in
+  `docker/editor/model-editor` also the playground tag and its commit); bump all together.
 - One project per directory, with a `likec4.config.json` (the validator discovers by that
   name). Layout inside: `shared/`, `teams/<domain>/`, `views/` (see `docs/conventions.md`).
 - Decisions go in `docs/decisions/NNNN-*.md` with date, context, decision, consequences.

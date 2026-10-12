@@ -48,8 +48,9 @@ compared): `just editor-build`, then `just poc-remote` (a local bare repo
 `build/poc-remote.git` stands in for GitHub), then `just editor-up TOOL=likec4` (needs
 `PASSWORD`, `MODEL_USER` and `MODEL_SLUG`, see `.env.example`). code-server is on
 http://127.0.0.1:8092, the `likec4 start` dev server on http://127.0.0.1:8093. `submit`
-(`tools/submit.py`) validates, commits the model directory, sends the `model/*` branch to the
-bare repo and prints the `gh pr create` command; it does not run it. `just editor-down` stops
+(`tools/submit.py`) validates, commits the `.c4` files of the model directory (layout `.snap`
+files are skipped and listed, [ADR 0008](decisions/0008-layout-snap-policy.md)), sends the
+`model/*` branch to the bare repo and prints the `gh pr create` command; it does not run it. `just editor-down` stops
 it. The editor works on `examples/shop` (`MODEL_PATH` in the Containerfiles).
 
 Editing service (✅ local PoC, no code-server): `just editor-up likec4-web` serves a page with
@@ -58,6 +59,17 @@ diagram on http://127.0.0.1:8095. It writes the `.c4` files of the fresh clone a
 through the same `submit`; it is chosen with `EDITOR_UI=web` (`RENDER_URL` and `HMR_PORT` are
 set by `docker/compose.editor.yml`). Details, measurements and open questions:
 [research/likec4-web-editing.md](research/likec4-web-editing.md).
+
+Model editor (✅ local PoC): the LikeC4 playground at tag `v1.59.4` plus our patch set, with a
+file tree, save and autosave to the clone, Validate, Format and a Submit dialog
+([ADR 0007](decisions/0007-model-editor-on-likec4-playground.md)). Build it with
+`just model-editor-build` (needs GitHub and npm, takes minutes), then `just poc-remote` and
+`just editor-up model-editor` (`PASSWORD`, `MODEL_USER`, `MODEL_SLUG`); it is on
+http://127.0.0.1:8097 and `just editor-down` stops it. `just playground-patches-stat` shows how
+much of the playground the patches change. Details, measurements and the upgrade trial:
+[research/likec4-editor-image.md](research/likec4-editor-image.md); how to rebuild and upgrade:
+`docker/editor/model-editor/README.md`. It replaces the textarea page (`likec4-web`), which
+stays until a follow-up removes it.
 
 "No push to `main`" is enforced by the script and, later, by branch protection.
 
