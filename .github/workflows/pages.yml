@@ -1,0 +1,51 @@
+# Publishes the LikeC4 site of examples/shop to GitHub Pages (ADR 0010).
+# - Pages must be enabled with source "GitHub Actions" (an owner step in repo settings).
+# - /editor/ on the Pages site is reserved for the editor demo: build it into build/pages/editor/
+#   after the viewer build, because `just pages-build` replaces the whole build/pages directory.
+# - Pull requests build the site only; the artifact upload and the deploy run on main.
+name: pages
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    env:
+      CONTAINER_ENGINE: docker
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v10.3.0
+      - uses: extractions/setup-just@v4
+      - name: Build the site
+        run: just pages-build HEAD
+      - name: Check the site was built
+        run: test -f build/pages/index.html
+      - name: Upload the site
+        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+        uses: actions/upload-pages-artifact@v5
+        with:
+          path: build/pages
+
+  deploy:
+    needs: build
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    concurrency:
+      group: pages
+      cancel-in-progress: false
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v5

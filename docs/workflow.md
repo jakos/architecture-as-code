@@ -14,7 +14,7 @@ and the local PoC of Flow B1 with measurements
                  ▲                                                         │
  Flow B1 ────────┘ (editor container: browser editor + live render,        ▼
                     "submit" = commit to branch + gh pr create)      deploy jobs:
-                                                                     1. publish static site         ✅ local / ⏳ CI
+                                                                     1. publish static site         ✅ local / ✅ CI (Pages)
                                                                      2. drift check vs Kubernetes   ⏳
                                                                      3. (later) generate objects    ⏳
 ```
@@ -73,14 +73,19 @@ stays until a follow-up removes it.
 
 "No push to `main`" is enforced by the script and, later, by branch protection.
 
-## Deploy 1: publish a browsable site ✅ locally, ⏳ CI
+## Deploy 1: publish a browsable site ✅ locally, ✅ CI (GitHub Pages)
 
 `just site` runs `likec4 build` on `examples/shop` into `build/site` (with hash-history
 navigation, so deep links work on a plain file server) and serves it on
 http://127.0.0.1:8081. It is the same diagram viewer as `just up` (zoom, navigation between
-views), read-only, as plain files. Next: a CI job on merge to `main` that publishes
-`build/site` to GitHub Pages (private Pages needs GitHub Enterprise Cloud; otherwise another
-host).
+views), read-only, as plain files.
+
+CI publishes `examples/shop` from `main` to GitHub Pages on every push
+(`.github/workflows/pages.yml`, [ADR 0010](decisions/0010-example-site-on-github-pages.md)):
+https://jakos.github.io/architecture-as-code/. Pull requests build the site but do not deploy.
+Locally, `just pages-build` builds the same site into `build/pages` and `just pages-up` serves
+it on http://127.0.0.1:8083/architecture-as-code/ (`just pages-down` stops it). Pages is public,
+so only example models go there; `/editor/` is reserved for the editor demo.
 
 No server is run; see [ADR 0006](decisions/0006-likec4-is-the-tool-of-record.md).
 

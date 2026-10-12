@@ -21,6 +21,9 @@ and an architecture team. It has one folder per team, every C4 level (context, c
 component and deployment, with `kubernetes_*` metadata), dynamic views, a menu folder per
 team, and written multi-user scenarios such as parallel edits and merge conflicts.
 
+[View the model](https://jakos.github.io/architecture-as-code/) as a browsable LikeC4 site,
+published from `main` on GitHub Pages.
+
 ## Quick start
 
 Needs: [uv](https://docs.astral.sh/uv/), [just](https://just.systems/), Podman or Docker.
@@ -32,7 +35,7 @@ just check                  # validate everything
 just up                     # http://127.0.0.1:8080 renders examples/shop live
 just site                   # http://127.0.0.1:8081 static site of examples/shop
 just down                   # stop both
-just viewer-up      # read-only viewer on :8082 (main; branches via just viewer-build <ref>)
+just viewer-up              # read-only viewer on :8082 (main; branches via just viewer-build <ref>)
 ```
 
 `uv run prek install` is optional. It installs git hooks from `prek.toml`: formatting and
@@ -48,9 +51,10 @@ Early draft. [docs/workflow.md](docs/workflow.md) has the detail.
 | Works today | Not yet |
 | --- | --- |
 | Edit `.c4` files in the repo, live render with `just up` | Browser editor that opens PRs: local proof of concept only, it commits to a `model/*` branch and does not open the PR itself |
-| Validation gate locally, on pre-push and in CI (`just check`) | Publishing the site from CI (planned) |
-| Static site built and served locally (`just site`) | Drift check against Kubernetes, read-only (planned) |
-| Example multi-team model in `examples/shop` | Generating Kubernetes objects (planned) |
+| Validation gate locally, on pre-push and in CI (`just check`) | Drift check against Kubernetes, read-only (planned) |
+| Static site built and served locally (`just site`) | Generating Kubernetes objects (planned) |
+| Example site published on GitHub Pages from `main` (CI) | |
+| Example multi-team model in `examples/shop` | |
 
 ## Docs
 

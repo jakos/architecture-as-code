@@ -40,7 +40,7 @@ just validate     # only the LikeC4 projects
 just up           # likec4 start on :8080 (MODEL=examples/shop by default)
 just site         # likec4 build to build/site, serve on :8081
 just down         # stop up and site
-just viewer-up      # read-only viewer on :8082 (main; branches via just viewer-build <ref>)
+just viewer-up    # read-only viewer on :8082 (main; branches via just viewer-build <ref>)
 ```
 
 ## Conventions

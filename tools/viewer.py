@@ -6,6 +6,12 @@ builds it with `likec4 build` in a container and puts the site under
 It also keeps `<out>/site/refs/` (a manifest and an HTML list of the built refs). Serve
 `<out>/site` with any static file server (`just viewer-up`).
 
+`pages --base BASE [--ref REF]` builds one site (default ref `HEAD`) for GitHub Pages: the site
+goes at the root of `--out` (default `build/pages`, which must be inside `<repo>/build/`) and
+is served under BASE, for example `/architecture-as-code/`. It writes no `refs/` manifest and
+replaces the whole `--out` directory, so `editor/` is left free for a later build into
+`<out>/editor/`.
+
 The tool never writes outside `--out`, never changes the host repo's working tree, `HEAD` or
 refs (a PR is fetched into FETCH_HEAD only), and never commits, pushes or checks out.
 """
@@ -21,7 +27,8 @@ import subprocess
 import sys
 import tarfile
 import tempfile
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
+from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
@@ -32,7 +39,9 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from validate_models import CONFIG_NAME, IMAGE, REPO
 
 DEFAULT_OUT = "build/viewer"
+DEFAULT_PAGES_OUT = "build/pages"
 SAFE_REF = re.compile(r"[A-Za-z0-9._/-]+")
+SAFE_SEGMENT = re.compile(r"[A-Za-z0-9._-]+")
 Runner = Callable[..., "subprocess.CompletedProcess"]
 
 
@@ -210,6 +219,38 @@ def check_not_inside_other_ref(site: Path, target: Target) -> None:
             )
 
 
+@contextmanager
+def built_site(
+    *,
+    ref: str,
+    commit: str,
+    repo: Path,
+    project: str,
+    engine: str,
+    base: str,
+    tmp_parent: Path,
+    run: Runner,
+) -> Iterator[Path]:
+    """Export the project at `commit` and build it; yields the directory holding the site.
+
+    The directory lives in a temp dir below `tmp_parent` that is removed on exit, so the caller
+    must move the site out (`swap_in`) before leaving the block.
+    """
+    tmp_parent.mkdir(parents=True, exist_ok=True)
+    work = Path(tempfile.mkdtemp(prefix="work-", dir=tmp_parent)).resolve()
+    try:
+        src = export_project(repo, commit, project, work / "src", run)
+        dest = work / "site"
+        dest.mkdir()
+        title = f"{Path(project).name} @ {ref} ({commit[:7]})"
+        cmd = build_command(engine, src, dest, base, title)
+        if run(cmd, check=False).returncode != 0 or not (dest / "index.html").is_file():
+            raise ViewerError(f"build failed for {ref}; previous site kept")
+        yield dest
+    finally:
+        shutil.rmtree(work, ignore_errors=True)
+
+
 def build_ref(
     ref: str,
     *,
@@ -223,22 +264,67 @@ def build_ref(
     target = parse_ref(ref)
     commit = resolve_commit(repo, target, remote, run)
     check_not_inside_other_ref(out.resolve() / "site", target)
-    out.mkdir(parents=True, exist_ok=True)
-    work = Path(tempfile.mkdtemp(prefix="work-", dir=out)).resolve()
-    try:
-        src = export_project(repo, commit, project, work / "src", run)
-        dest = work / "site"
-        dest.mkdir()
-        title = f"{Path(project).name} @ {target.name} ({commit[:7]})"
-        cmd = build_command(engine, src, dest, f"/{target.url_path}", title)
-        if run(cmd, check=False).returncode != 0 or not (dest / "index.html").is_file():
-            raise ViewerError(f"build failed for {ref}; previous site kept")
+    with built_site(
+        ref=target.name,
+        commit=commit,
+        repo=repo,
+        project=project,
+        engine=engine,
+        base=f"/{target.url_path}",
+        tmp_parent=out,
+        run=run,
+    ) as dest:
         site = out.resolve() / "site"
         swap_in(dest, site / target.url_path.rstrip("/"))
         record_ref(site, target, commit)
-    finally:
-        shutil.rmtree(work, ignore_errors=True)
     print(f"built {ref} ({commit[:7]}) -> {out.as_posix()}/site/{target.url_path}", flush=True)
+
+
+def check_base(base: str) -> None:
+    """A base is `/` or `/seg/.../`, each segment made of [A-Za-z0-9._-], none `.`, `..` or `-x`."""
+    if len(base) < 1 or not base.startswith("/") or not base.endswith("/"):
+        raise ViewerError(f"invalid base (must start and end with '/'): {base}")
+    if base == "/":
+        return
+    for segment in base[1:-1].split("/"):
+        if not SAFE_SEGMENT.fullmatch(segment) or segment in (".", "..") or segment.startswith("-"):
+            raise ViewerError(f"invalid base (bad segment {segment!r}): {base}")
+
+
+def check_pages_out(repo: Path, out: Path) -> None:
+    """The swap replaces the whole directory, so `out` must be strictly inside <repo>/build/."""
+    build = (repo / "build").resolve()
+    if build not in out.resolve().parents:
+        raise ViewerError(f"refusing --out {out}: must be inside {build.as_posix()}/")
+
+
+def build_pages(
+    ref: str,
+    *,
+    repo: Path,
+    project: str,
+    engine: str,
+    remote: str,
+    base: str,
+    out: Path,
+    run: Runner = subprocess.run,
+) -> None:
+    target = parse_ref(ref)
+    check_base(base)
+    check_pages_out(repo, out)
+    commit = resolve_commit(repo, target, remote, run)
+    with built_site(
+        ref=target.name,
+        commit=commit,
+        repo=repo,
+        project=project,
+        engine=engine,
+        base=base,
+        tmp_parent=out.resolve().parent,
+        run=run,
+    ) as dest:
+        swap_in(dest, out.resolve())
+    print(f"built {ref} ({commit[:7]}) -> {out.as_posix()}/", flush=True)
 
 
 def main(argv: list[str] | None = None, run: Runner = subprocess.run) -> int:
@@ -251,12 +337,36 @@ def main(argv: list[str] | None = None, run: Runner = subprocess.run) -> int:
     build.add_argument("--remote", default="origin", help="remote that serves refs/pull/<n>/head")
     build.add_argument("--out", default=DEFAULT_OUT)
     build.add_argument("--repo", default=str(REPO), help=argparse.SUPPRESS)
+    pages = sub.add_parser("pages", help="build one site at the root of --out for GitHub Pages")
+    pages.add_argument("--ref", default="HEAD", help="main, pr/<n>, a branch or HEAD (default)")
+    pages.add_argument("--base", required=True, help="URL path of the site, e.g. /name/")
+    pages.add_argument("--project", default=os.environ.get("MODEL", "examples/shop"))
+    pages.add_argument("--engine", default=os.environ.get("CONTAINER_ENGINE", "podman"))
+    pages.add_argument("--remote", default="origin", help="remote that serves refs/pull/<n>/head")
+    pages.add_argument("--out", default=DEFAULT_PAGES_OUT)
+    pages.add_argument("--repo", default=str(REPO), help=argparse.SUPPRESS)
     args = parser.parse_args(argv)
 
     repo = Path(args.repo)
     out = Path(args.out)
     if not out.is_absolute():
         out = repo / out
+    if args.command == "pages":
+        try:
+            build_pages(
+                args.ref,
+                repo=repo,
+                project=args.project.replace("\\", "/").strip("/"),
+                engine=args.engine,
+                remote=args.remote,
+                base=args.base,
+                out=out,
+                run=run,
+            )
+        except ViewerError as err:
+            print(str(err), file=sys.stderr)
+            return 1
+        return 0
     failed = False
     for ref in args.refs or ["main"]:
         try:

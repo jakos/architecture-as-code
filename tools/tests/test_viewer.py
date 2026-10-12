@@ -220,3 +220,70 @@ def test_build_inside_another_ref_is_refused(repo, capsys):
     assert "inside the site of a" in capsys.readouterr().err
     site = repo / "build" / "viewer" / "site"
     assert [e["ref"] for e in json.loads((site / "refs" / "refs.json").read_text())] == ["a"]
+
+
+PAGES_BASE = "/architecture-as-code/"
+
+
+def run_pages(repo: Path, *extra: str, runner=None, base: str = PAGES_BASE) -> int:
+    return viewer.main(
+        ["pages", f"--base={base}", "--project", PROJECT, "--repo", str(repo), *extra],
+        run=runner or FakeRunner(),
+    )
+
+
+def test_pages_builds_site_at_out_root(repo):
+    runner = FakeRunner()
+    assert run_pages(repo, runner=runner) == 0
+    out = repo / "build" / "pages"
+    assert (out / "index.html").read_text() == "site of main content"
+    cmd = runner.builds[0]
+    assert cmd[cmd.index("--base") + 1] == PAGES_BASE
+    assert "--use-hash-history" in cmd
+    assert not (out / "refs").exists()
+    assert not (out / "editor").exists()
+    assert list((repo / "build").iterdir()) == [out]
+
+
+def test_pages_default_ref_is_head(repo):
+    commit_model(repo, "head content")
+    git(repo, "checkout", "-q", "--detach", "HEAD")
+    git(repo, "branch", "-f", "main", "HEAD~1")
+    runner = FakeRunner()
+    assert run_pages(repo, runner=runner) == 0
+    assert runner.exported == ["head content"]
+
+
+@pytest.mark.parametrize(
+    "base", ["architecture-as-code", "/a", "a/", "/../", "/a b/", "/a//b/", "-x/", "/./", "/-x/"]
+)
+def test_pages_rejects_bad_base(repo, capsys, base):
+    runner = FakeRunner()
+    assert run_pages(repo, runner=runner, base=base) == 1
+    assert "invalid base" in capsys.readouterr().err
+    assert runner.builds == []
+    assert not (repo / "build").exists()
+
+
+def test_pages_refuses_out_outside_build(repo, tmp_path, capsys):
+    outside = tmp_path / "elsewhere"
+    outside.mkdir()
+    (outside / "keep.txt").write_text("keep")
+    before = snapshot(repo)
+    for out in (str(repo), "build", str(outside), "build/.."):
+        runner = FakeRunner()
+        assert run_pages(repo, "--out", out, runner=runner) == 1
+        assert "refusing --out" in capsys.readouterr().err
+        assert runner.builds == []
+    assert snapshot(repo) == before
+    assert (outside / "keep.txt").read_text() == "keep"
+    assert not (repo / "build").exists()
+
+
+def test_pages_failed_build_keeps_previous_site(repo, capsys):
+    assert run_pages(repo) == 0
+    commit_model(repo, "newer content")
+    assert run_pages(repo, runner=FakeRunner(fail=True)) == 1
+    assert "build failed" in capsys.readouterr().err
+    assert (repo / "build/pages/index.html").read_text() == "site of main content"
+    assert [p.name for p in (repo / "build").iterdir()] == ["pages"]

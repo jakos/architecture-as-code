@@ -6,6 +6,9 @@ editor_compose := engine + " compose -f docker/compose.editor.yml"
 likec4_image := "docker.io/likec4/likec4:1.59.4"
 nginx_image := "docker.io/library/nginx:1.29.4-alpine"
 
+# URL path the GitHub Pages site is served under (https://jakos.github.io/architecture-as-code/)
+pages_base := "/architecture-as-code/"
+
 # Default variant for `editor-up`: likec4 (code-server) or likec4-web. Documented form: `just editor-up TOOL=likec4`
 TOOL := "likec4"
 
@@ -90,3 +93,17 @@ viewer-up:
 # Stop and remove the read-only viewer (fine if it is not running)
 viewer-down:
     {{engine}} rm -f aac-viewer
+
+# GitHub Pages site: build REF (default main; CI uses HEAD) of MODEL into build/pages, served under pages_base
+pages-build ref="main":
+    uv run --locked python tools/viewer.py pages --ref {{ref}} --base {{pages_base}} --out build/pages
+
+# GitHub Pages site on http://127.0.0.1:8083/architecture-as-code/: builds main, then serves build/pages
+pages-up:
+    uv run --locked python tools/viewer.py pages --ref main --base {{pages_base}} --out build/pages
+    {{engine}} rm -f aac-pages
+    {{engine}} run -d --name aac-pages -p 127.0.0.1:8083:80 -v "./build/pages:/usr/share/nginx/html/architecture-as-code:ro" {{nginx_image}}
+
+# Stop and remove the local GitHub Pages server (fine if it is not running)
+pages-down:
+    {{engine}} rm -f aac-pages
