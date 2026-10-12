@@ -32,6 +32,7 @@ just check                  # validate everything
 just up                     # http://127.0.0.1:8080 renders examples/shop live
 just site                   # http://127.0.0.1:8081 static site of examples/shop
 just down                   # stop both
+just viewer-up      # read-only viewer on :8082 (main; branches via just viewer-build <ref>)
 ```
 
 `uv run prek install` is optional. It installs git hooks from `prek.toml`: formatting and

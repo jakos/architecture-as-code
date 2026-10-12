@@ -84,6 +84,28 @@ host).
 
 No server is run; see [ADR 0006](decisions/0006-likec4-is-the-tool-of-record.md).
 
+## Read-only viewer ✅ local / ⏳ hosted
+
+A separate read-only service (nginx on static `likec4 build` sites) for reading `main` and
+reviewing branches and pull requests. On http://127.0.0.1:8082:
+
+- `/` redirects to `/main/`, so `main` is the default;
+- `/branch/<name>/` is a local branch, `/pr/<n>/` a GitHub pull request;
+- `/refs/` lists the built refs with commit and build time.
+
+```
+just viewer-up                              # build main, serve on :8082
+just viewer-build task/shop-multi-team-model  # add or refresh a branch
+just viewer-build pr/12                     # add a PR (needs a remote with refs/pull/12/head)
+just viewer-down
+```
+
+Sites are built from git commits (`git archive`), not the working tree, and the repo's refs
+and files stay unchanged. Policy: `main` is built on every push, branches and PRs only on
+demand by the command above; there is no build button. See
+[ADR 0009](decisions/0009-readonly-viewer-main-on-push-branches-on-demand.md). Hosting and the
+CI job that builds on push are planned under `editor-hosting-and-auth`.
+
 ## Deploy 2: drift check against Kubernetes ⏳ (chosen first, see ADR 0003)
 
 The model does not create anything yet. A job compares the deployment model with what is

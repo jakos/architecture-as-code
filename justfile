@@ -75,3 +75,18 @@ editor-up tool=TOOL:
 
 editor-down:
     {{editor_compose}} --profile likec4 --profile likec4-web --profile likec4-playground --profile model-editor down
+
+# Read-only viewer: build the static site of one or more refs into build/viewer/site (default main;
+# also a branch name or pr/<n>, which needs a remote with refs/pull/<n>/head)
+viewer-build *refs:
+    uv run --locked python tools/viewer.py build {{refs}}
+
+# Read-only viewer on http://127.0.0.1:8082: builds main, then serves build/viewer/site (/ -> /main/)
+viewer-up:
+    uv run --locked python tools/viewer.py build main
+    {{engine}} rm -f aac-viewer
+    {{engine}} run -d --name aac-viewer -p 127.0.0.1:8082:80 -v "./build/viewer/site:/usr/share/nginx/html:ro" -v "./docker/viewer/nginx.conf:/etc/nginx/conf.d/default.conf:ro" {{nginx_image}}
+
+# Stop and remove the read-only viewer (fine if it is not running)
+viewer-down:
+    {{engine}} rm -f aac-viewer
