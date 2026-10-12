@@ -1,9 +1,9 @@
 diff --git a/apps/playground/src/aac/AacEditorLayout.tsx b/apps/playground/src/aac/AacEditorLayout.tsx
 new file mode 100644
-index 0000000..ca3214f
+index 0000000..f50707b
 --- /dev/null
 +++ b/apps/playground/src/aac/AacEditorLayout.tsx
-@@ -0,0 +1,304 @@
+@@ -0,0 +1,324 @@
 +import { usePlayground, usePlaygroundContext } from '$hooks/usePlayground'
 +import {
 +  ActionIcon,
@@ -28,7 +28,10 @@ index 0000000..ca3214f
 +  IconInfoCircle,
 +  IconX,
 +} from '@tabler/icons-react'
-+import { type PropsWithChildren, useEffect, useMemo } from 'react'
++import { useRouter } from '@tanstack/react-router'
++import { type PropsWithChildren, useEffect, useMemo, useRef } from 'react'
++import { viewForFile } from './followFile'
++import { locate } from './language'
 +import { $problems, applyMarkers, dropStaleProblems, revealInEditor } from './problems'
 +import { type FileSaveState, type SaveStates, useSaveStates } from './saving'
 +import { type Problem } from './server'
@@ -155,6 +158,8 @@ index 0000000..ca3214f
 +
 +function FileTree() {
 +  const playground = usePlayground()
++  const router = useRouter()
++  const latestClick = useRef(0)
 +  const files = usePlaygroundContext(s => s.files)
 +  const activeFilename = usePlaygroundContext(s => s.activeFilename)
 +  const saveStates = useSaveStates(files)
@@ -177,6 +182,21 @@ index 0000000..ca3214f
 +        onOpen={path => {
 +          revealInEditor(path, null)
 +          playground.changeActiveFile(path)
++          // Show the file's view. Only a tree click does this; a newer click drops an older result.
++          const click = ++latestClick.current
++          const { likec4model, files } = playground.getContext()
++          viewForFile(path, likec4model, files[path], locate)
++            .then(viewId => {
++              if (click !== latestClick.current || !viewId) return
++              // Same two steps as the "open preview" code lens: URL and diagram agree.
++              void router.navigate({
++                from: '/w/$workspaceId/$viewId',
++                to: './',
++                params: { viewId },
++              })
++              playground.changeActiveView(viewId)
++            })
++            .catch(error => console.error('could not follow file to its view', error))
 +        }} />
 +    </ScrollArea>
 +  )
@@ -674,6 +694,182 @@ index 0000000..b73e903
 +    </Stack>
 +  )
 +}
+diff --git a/apps/playground/src/aac/followFile.ts b/apps/playground/src/aac/followFile.ts
+new file mode 100644
+index 0000000..498a977
+--- /dev/null
++++ b/apps/playground/src/aac/followFile.ts
+@@ -0,0 +1,139 @@
++import type { ViewId } from '@likec4/core'
++import type { LikeC4Model } from '@likec4/core/model'
++import type { Location } from 'vscode-languageserver-types'
++import { hasLocate, type LocateFn } from './language'
++
++type Position = { file: string; line: number; character: number }
++
++type ViewLike = {
++  readonly id: ViewId
++  readonly $view: { readonly sourcePath?: string | undefined }
++}
++
++const normalize = (path: string) => path.replace(/^\/+/, '')
++
++/** File name (as in the workspace) of a language server location. */
++function fileOf(location: Location): string {
++  return normalize(decodeURIComponent(new URL(location.uri).pathname))
++}
++
++function toPosition(location: Location | null): Position | null {
++  if (!location) return null
++  return { file: fileOf(location), line: location.range.start.line, character: location.range.start.character }
++}
++
++function compare(a: Position, b: Position): number {
++  return a.file.localeCompare(b.file) || a.line - b.line || a.character - b.character
++}
++
++/** Locate that never throws: a failure is logged and counts as "not found". */
++async function tryLocate(locate: LocateFn, target: Parameters<LocateFn>[0]): Promise<Position | null> {
++  try {
++    return toPosition(await locate(target))
++  } catch (error) {
++    console.warn('locate failed', target, error)
++    return null
++  }
++}
++
++/** Views in source order (file, line, character); views that cannot be located come last, in input order. */
++async function inSourceOrder(views: Iterable<ViewLike>, locate: LocateFn): Promise<ViewId[]> {
++  const located = await Promise.all(
++    [...views].map(async (view, index) => ({ id: view.id, index, at: await tryLocate(locate, { view: view.id }) })),
++  )
++  return located
++    .sort((a, b) => {
++      if (a.at && b.at) return compare(a.at, b.at)
++      if (a.at) return -1
++      if (b.at) return 1
++      return a.index - b.index
++    })
++    .map(v => v.id)
++}
++
++/**
++ * The view that belongs to a file, or null to leave the diagram alone.
++ *
++ * 1. A view defined in the file wins (the first one in the file).
++ * 2. Otherwise the elements and deployment nodes defined in the file, outermost first, in
++ *    source order. For each: its first scoped view (`view x of <element>`), then the first view
++ *    that includes it (for a deployment element: the first deployment view).
++ *
++ * Everything comes from the model and the language server; no names are built in.
++ */
++export async function viewForFile(
++  filename: string,
++  model: LikeC4Model.Computed | null,
++  fileText: string | undefined,
++  locate: LocateFn,
++): Promise<ViewId | null> {
++  const file = normalize(filename)
++  if (!model || fileText === undefined || !file.endsWith('.c4')) return null
++
++  // Views defined in the file. sourcePath is relative to the project folder; if it is missing,
++  // ask the language server.
++  const views = [...model.views()]
++  const inFile = await Promise.all(views.map(async view => {
++    const sourcePath = view.$view.sourcePath
++    if (sourcePath) return normalize(sourcePath) === file
++    return (await tryLocate(locate, { view: view.id }))?.file === file
++  }))
++  const defined = views.filter((_, i) => inFile[i])
++  if (defined.length > 0) {
++    return (await inSourceOrder(defined, locate))[0] ?? null
++  }
++
++  // Elements defined in the file. A file cannot define a name it does not contain.
++  type Candidate = {
++    kind: 'element' | 'deployment'
++    id: string
++    parent: string | null
++    at: Position
++    firstView: () => Promise<ViewId | null>
++  }
++  const first = async (candidates: Iterable<ViewLike>) => (await inSourceOrder(candidates, locate))[0] ?? null
++  const found = await Promise.all([
++    ...[...model.elements()]
++      .filter(element => fileText.includes(element.name))
++      .map(async (element): Promise<Candidate | null> => {
++        const at = await tryLocate(locate, { element: element.id })
++        if (at?.file !== file) return null
++        return {
++          kind: 'element',
++          id: element.id,
++          parent: element.parent?.id ?? null,
++          at,
++          firstView: async () => (await first(element.scopedViews())) ?? (await first(element.views())),
++        }
++      }),
++    ...[...model.deployment.elements()]
++      .filter(element => fileText.includes(element.name))
++      .map(async (element): Promise<Candidate | null> => {
++        const at = await tryLocate(locate, { deployment: element.id })
++        if (at?.file !== file) return null
++        return {
++          kind: 'deployment',
++          id: element.id,
++          parent: element.parent?.id ?? null,
++          at,
++          firstView: () => first(element.views()),
++        }
++      }),
++  ])
++  const defining = found.filter((c): c is Candidate => c !== null)
++  console.debug('followFile', {
++    file,
++    hasLocate: hasLocate(),
++    defining: defining.map(c => `${c.id}@${c.at.file}:${c.at.line}`),
++  })
++  // Logical and deployment ids live in separate namespaces.
++  const ids = new Set(defining.map(c => `${c.kind}:${c.id}`))
++  const roots = defining
++    .filter(c => c.parent === null || !ids.has(`${c.kind}:${c.parent}`))
++    .sort((a, b) => compare(a.at, b.at))
++  for (const root of roots) {
++    const view = await root.firstView()
++    if (view) return view
++  }
++  return null
++}
+diff --git a/apps/playground/src/aac/language.ts b/apps/playground/src/aac/language.ts
+new file mode 100644
+index 0000000..afb3e5f
+--- /dev/null
++++ b/apps/playground/src/aac/language.ts
+@@ -0,0 +1,25 @@
++import type { Locate } from '@likec4/language-server/protocol'
++import type { Location } from 'vscode-languageserver-types'
++
++/** Sends a Locate request to the LikeC4 language server. */
++export type LocateFn = (params: Locate.Params) => Promise<Location | null>
++
++let current: LocateFn | null = null
++
++/**
++ * LanguageClientSync owns the language client. It registers its Locate request here
++ * (and clears it when the client goes away), so that code in src/aac/ can ask where
++ * something is defined.
++ */
++export function setLocate(fn: LocateFn | null) {
++  current = fn
++}
++
++export function hasLocate(): boolean {
++  return current !== null
++}
++
++/** Where the language server says the target is defined; null while no client is registered. */
++export async function locate(params: Locate.Params): Promise<Location | null> {
++  return current ? await current(params) : null
++}
 diff --git a/apps/playground/src/aac/problems.ts b/apps/playground/src/aac/problems.ts
 new file mode 100644
 index 0000000..890f9c7
@@ -787,6 +983,36 @@ index 0000000..890f9c7
 +  }
 +  editor.focus()
 +}
+diff --git a/apps/playground/src/monaco/LanguageClientSync.tsx b/apps/playground/src/monaco/LanguageClientSync.tsx
+index 39d56e5..d68ded7 100644
+--- a/apps/playground/src/monaco/LanguageClientSync.tsx
++++ b/apps/playground/src/monaco/LanguageClientSync.tsx
+@@ -8,6 +8,7 @@ import type { CustomWrapperConfig } from './config'
+ 
+ import { usePlayground, usePlaygroundSnapshot } from '$/hooks/usePlayground'
+ import { DRAWIO_EXPORT_EVENT } from '$components/drawio/drawio-events'
++import { setLocate } from '../aac/language' // aac: hand Locate to src/aac/
+ import * as monaco from '@codingame/monaco-vscode-editor-api'
+ import { invariant, nonNullable } from '@likec4/core'
+ import { LikeC4Model } from '@likec4/core/model'
+@@ -272,6 +273,9 @@ export function LanguageClientSync({
+           }),
+         )
+ 
++        // aac: register before the initial build, which may fail while the model still loads fine
++        setLocate(p => languageClient().sendRequest(Locate.req, p))
++
+         try {
+           // Initial request for model
+           await languageClient().sendRequest(BuildDocuments.req, { docs })
+@@ -291,6 +295,7 @@ export function LanguageClientSync({
+         logger.error(loggable(err))
+       })
+     return () => {
++      setLocate(null) // aac
+       setLayoutedModelApi?.(null)
+       logger.debug`cleanDisposables`
+       cleanDisposables(disposables)
 diff --git a/apps/playground/src/routes/index.tsx b/apps/playground/src/routes/index.tsx
 index b966e46..1fb7b0f 100644
 --- a/apps/playground/src/routes/index.tsx

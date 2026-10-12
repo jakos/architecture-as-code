@@ -23,7 +23,8 @@ APP = "apps/playground/"
 # Which upstream-relative paths go into which patch. A path belongs to the first entry whose
 # prefix matches. A changed path that matches none is an error: nothing is dropped silently.
 # 0002 holds the whole state machine file and 0003 the whole route file, so that every patch
-# is a self-consistent step (each compiles on top of the one before).
+# is a self-consistent step (each compiles on top of the one before). 0003 also holds the few
+# lines in LanguageClientSync.tsx that hand the Locate request to src/aac/.
 PATCH_PATHS: list[tuple[str, list[str]]] = [
     (
         "0001-remove-cloud-features.patch",
@@ -48,6 +49,7 @@ PATCH_PATHS: list[tuple[str, list[str]]] = [
         [
             f"{APP}src/routes/index.tsx",
             f"{APP}src/routes/w.$workspaceId/route.tsx",
+            f"{APP}src/monaco/LanguageClientSync.tsx",
             f"{APP}src/aac/",
         ],
     ),

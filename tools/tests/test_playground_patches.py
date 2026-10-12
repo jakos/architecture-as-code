@@ -98,3 +98,11 @@ def test_assign_routes_paths_and_rejects_unknown_ones():
     assert groups["0003-editor-ui.patch"] == [f"{app}src/aac/x.tsx"]
     with pytest.raises(SystemExit, match="belongs to no patch"):
         playground_patches.assign([f"{app}package.json"])
+
+
+def test_assign_sends_language_client_sync_to_0003_and_only_that_monaco_file():
+    app = playground_patches.APP
+    groups = playground_patches.assign([f"{app}src/monaco/LanguageClientSync.tsx"])
+    assert groups["0003-editor-ui.patch"] == [f"{app}src/monaco/LanguageClientSync.tsx"]
+    with pytest.raises(SystemExit, match="belongs to no patch"):
+        playground_patches.assign([f"{app}src/monaco/MonacoEditor.tsx"])
