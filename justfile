@@ -60,6 +60,16 @@ playground-up:
 model-editor-build:
     {{engine}} build -f docker/editor/model-editor/Containerfile -t localhost/aac-model-editor:v1.59.4 .
 
+# Static editor demo for Pages, app part: the playground plus our patches built in Vite mode `demo`
+# under pages_base + editor/ (needs GitHub and npm, takes minutes; reuses the cached build stage of model-editor-build)
+editor-demo-app:
+    uv run --locked python tools/editor_demo.py app --base {{pages_base}}editor/
+
+# Static editor demo for Pages, model part: puts the app plus workspace.json (the .c4 files of MODEL at REF)
+# into build/pages/editor. Run after pages-build, which replaces the whole build/pages
+editor-demo-assemble ref="main":
+    uv run --locked python tools/editor_demo.py assemble --base {{pages_base}}editor/ --ref {{ref}}
+
 # Size of the model editor's patch set against the playground (lines changed in upstream files)
 playground-patches-stat:
     uv run --locked python tools/playground_patches.py stat docker/editor/model-editor/patches
@@ -98,9 +108,11 @@ viewer-down:
 pages-build ref="main":
     uv run --locked python tools/viewer.py pages --ref {{ref}} --base {{pages_base}} --out build/pages
 
-# GitHub Pages site on http://127.0.0.1:8083/architecture-as-code/: builds main, then serves build/pages
+# GitHub Pages site on http://127.0.0.1:8083/architecture-as-code/: builds main, adds the editor demo
+# if `editor-demo-app` was run, then serves build/pages
 pages-up:
     uv run --locked python tools/viewer.py pages --ref main --base {{pages_base}} --out build/pages
+    uv run --locked python tools/editor_demo.py assemble --base {{pages_base}}editor/ --ref main --optional
     {{engine}} rm -f aac-pages
     {{engine}} run -d --name aac-pages -p 127.0.0.1:8083:80 -v "./build/pages:/usr/share/nginx/html/architecture-as-code:ro" {{nginx_image}}
 

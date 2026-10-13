@@ -25,6 +25,10 @@ APP = "apps/playground/"
 # 0002 holds the whole state machine file and 0003 the whole route file, so that every patch
 # is a self-consistent step (each compiles on top of the one before). 0003 also holds the few
 # lines in LanguageClientSync.tsx that hand the Locate request to src/aac/.
+# Demo mode (a Vite build mode, see src/aac/mode.ts) lives in the same patches: its data side
+# (mode.ts, the static workspace loader, no saving) in 0002, its UI side (header, route loader,
+# hash history in router.tsx) in 0003. mode.ts is listed before the `src/aac/` prefix of 0003
+# so that 0002 claims it.
 PATCH_PATHS: list[tuple[str, list[str]]] = [
     (
         "0001-remove-cloud-features.patch",
@@ -42,11 +46,13 @@ PATCH_PATHS: list[tuple[str, list[str]]] = [
             f"{APP}src/state/playground-machine.ts",
             f"{APP}src/aac/server.ts",
             f"{APP}src/aac/saving.ts",
+            f"{APP}src/aac/mode.ts",
         ],
     ),
     (
         "0003-editor-ui.patch",
         [
+            f"{APP}src/router.tsx",
             f"{APP}src/routes/index.tsx",
             f"{APP}src/routes/w.$workspaceId/route.tsx",
             f"{APP}src/monaco/LanguageClientSync.tsx",

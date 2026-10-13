@@ -85,7 +85,16 @@ CI publishes `examples/shop` from `main` to GitHub Pages on every push
 https://jakos.github.io/architecture-as-code/. Pull requests build the site but do not deploy.
 Locally, `just pages-build` builds the same site into `build/pages` and `just pages-up` serves
 it on http://127.0.0.1:8083/architecture-as-code/ (`just pages-down` stops it). Pages is public,
-so only example models go there; `/editor/` is reserved for the editor demo.
+so only example models go there.
+
+The editor demo is on the same site, at https://jakos.github.io/architecture-as-code/editor/
+([ADR 0011](decisions/0011-editor-demo-on-github-pages.md)): the model editor's own app built as
+a static page (Vite mode `demo`), with the `.c4` files of `examples/shop` as of the pushed commit
+in a `workspace.json`. It has the file tree, completion, hover, live errors and the live
+diagram; edits stay in memory and a reload resets them. It has no Validate, Format or Submit
+and no branch. Locally: `just editor-demo-app` builds the app (needs GitHub and npm, takes
+minutes), `just editor-demo-assemble` adds the model into `build/pages/editor`, and
+`just pages-up` serves it (the app is built in CI too, cached on the files it depends on).
 
 No server is run; see [ADR 0006](decisions/0006-likec4-is-the-tool-of-record.md).
 

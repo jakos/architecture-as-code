@@ -330,16 +330,17 @@ index 0000000..f50707b
 +}
 diff --git a/apps/playground/src/aac/AacHeader.tsx b/apps/playground/src/aac/AacHeader.tsx
 new file mode 100644
-index 0000000..8e70186
+index 0000000..c4d67ad
 --- /dev/null
 +++ b/apps/playground/src/aac/AacHeader.tsx
-@@ -0,0 +1,204 @@
+@@ -0,0 +1,239 @@
 +import { usePlayground, usePlaygroundContext } from '$hooks/usePlayground'
 +import { ActionIcon, Badge, Button, Group, Text, Tooltip } from '@mantine/core'
 +import { modals } from '@mantine/modals'
 +import { useStore } from '@nanostores/react'
 +import {
 +  IconAlertCircle,
++  IconBrandGithub,
 +  IconCheck,
 +  IconGitBranch,
 +  IconInfoCircle,
@@ -351,6 +352,7 @@ index 0000000..8e70186
 +import { useEffect, useState } from 'react'
 +import { ColorSchemeToggle } from '../components/ColorSchemeToggle'
 +import { AboutContent } from './AboutContent'
++import { DEMO } from './mode'
 +import { $problems, runValidate } from './problems'
 +import { dirtyFiles, saveAll, useSaveStates } from './saving'
 +import { errorMessage, server } from './server'
@@ -359,6 +361,7 @@ index 0000000..8e70186
 +function useBranch() {
 +  const [branch, setBranch] = useState<string | null>(null)
 +  useEffect(() => {
++    if (DEMO) return // no server, no branch
 +    server.status().then(s => setBranch(s.branch), () => setBranch(null))
 +  }, [])
 +  return branch
@@ -397,14 +400,18 @@ index 0000000..8e70186
 +  )
 +}
 +
-+/** Ctrl/Cmd+S saves now; leaving the page with unsaved changes asks first. */
++/**
++ * Ctrl/Cmd+S saves now; leaving the page with unsaved changes asks first.
++ * In the demo Ctrl/Cmd+S only keeps the browser's save dialog away, and leaving never asks:
++ * a reload resets the text, which is the point of the demo.
++ */
 +function useSaveShortcuts() {
 +  const playground = usePlayground()
 +  useEffect(() => {
 +    const onKeyDown = (event: KeyboardEvent) => {
 +      if ((event.ctrlKey || event.metaKey) && !event.shiftKey && !event.altKey && event.key.toLowerCase() === 's') {
 +        event.preventDefault()
-+        void saveAll(playground.getContext().files)
++        if (!DEMO) void saveAll(playground.getContext().files)
 +      }
 +    }
 +    const onBeforeUnload = (event: BeforeUnloadEvent) => {
@@ -414,7 +421,7 @@ index 0000000..8e70186
 +      }
 +    }
 +    window.addEventListener('keydown', onKeyDown)
-+    window.addEventListener('beforeunload', onBeforeUnload)
++    if (!DEMO) window.addEventListener('beforeunload', onBeforeUnload)
 +    return () => {
 +      window.removeEventListener('keydown', onKeyDown)
 +      window.removeEventListener('beforeunload', onBeforeUnload)
@@ -497,39 +504,67 @@ index 0000000..8e70186
 +          <Text fw={700} fz="md">Model editor</Text>
 +          <Text fz={10} c="dimmed" visibleFrom="md">based on LikeC4</Text>
 +        </Group>
-+        <Tooltip label="The branch your changes go to" withArrow>
-+          <Badge
-+            variant="light"
-+            color="gray"
-+            leftSection={<IconGitBranch size={12} />}
-+            tt="none"
-+            data-testid="branch-indicator">
-+            {branch ?? '...'}
-+          </Badge>
-+        </Tooltip>
-+        <SaveIndicator />
++        {DEMO
++          ? (
++            <Badge variant="light" color="yellow" tt="none" data-testid="demo-label">
++              Demo – changes are not saved
++            </Badge>
++          )
++          : (
++            <>
++              <Tooltip label="The branch your changes go to" withArrow>
++                <Badge
++                  variant="light"
++                  color="gray"
++                  leftSection={<IconGitBranch size={12} />}
++                  tt="none"
++                  data-testid="branch-indicator">
++                  {branch ?? '...'}
++                </Badge>
++              </Tooltip>
++              <SaveIndicator />
++            </>
++          )}
 +      </Group>
 +      <Group gap="xs" wrap="nowrap">
 +        {message && <Text fz="xs" c="dimmed" data-testid="header-message">{message}</Text>}
-+        <Button
-+          size="xs"
-+          variant="default"
-+          leftSection={<IconShieldCheck size={14} />}
-+          loading={problems.running}
-+          onClick={() => void validate()}>
-+          Validate
-+        </Button>
-+        <Button
-+          size="xs"
-+          variant="default"
-+          leftSection={<IconWand size={14} />}
-+          loading={busy === 'format'}
-+          onClick={() => void format()}>
-+          Format
-+        </Button>
-+        <Button size="xs" leftSection={<IconUpload size={14} />} onClick={openSubmit}>
-+          Submit
-+        </Button>
++        {DEMO
++          ? (
++            <Button
++              component="a"
++              href="https://github.com/jakos/architecture-as-code"
++              target="_blank"
++              rel="noopener"
++              size="xs"
++              variant="default"
++              leftSection={<IconBrandGithub size={14} />}
++              data-testid="repo-link">
++              Source on GitHub
++            </Button>
++          )
++          : (
++            <>
++              <Button
++                size="xs"
++                variant="default"
++                leftSection={<IconShieldCheck size={14} />}
++                loading={problems.running}
++                onClick={() => void validate()}>
++                Validate
++              </Button>
++              <Button
++                size="xs"
++                variant="default"
++                leftSection={<IconWand size={14} />}
++                loading={busy === 'format'}
++                onClick={() => void format()}>
++                Format
++              </Button>
++              <Button size="xs" leftSection={<IconUpload size={14} />} onClick={openSubmit}>
++                Submit
++              </Button>
++            </>
++          )}
 +        <ColorSchemeToggle />
 +        <ActionIcon variant="subtle" color="gray" size="md" aria-label="About" onClick={openAbout}>
 +          <IconInfoCircle size={18} stroke={1.5} />
@@ -540,19 +575,21 @@ index 0000000..8e70186
 +}
 diff --git a/apps/playground/src/aac/AboutContent.tsx b/apps/playground/src/aac/AboutContent.tsx
 new file mode 100644
-index 0000000..a5a3630
+index 0000000..5f2e7ec
 --- /dev/null
 +++ b/apps/playground/src/aac/AboutContent.tsx
-@@ -0,0 +1,21 @@
+@@ -0,0 +1,23 @@
 +import { Anchor, Stack, Text } from '@mantine/core'
++import { DEMO } from './mode'
 +
 +/** The attribution LikeC4's MIT license asks for; the full text is served next to the app. */
 +export function AboutContent() {
 +  return (
 +    <Stack gap="xs">
 +      <Text fz="sm">
-+        This model editor edits the LikeC4 model of your team in a git branch. Your changes are saved to the branch on
-+        the editor server and go to review when you press Submit.
++        {DEMO
++          ? 'This is a demo of the model editor with the example shop model. Your changes stay in this browser tab and are never saved; reloading the page resets the text.'
++          : 'This model editor edits the LikeC4 model of your team in a git branch. Your changes are saved to the branch on the editor server and go to review when you press Submit.'}
 +      </Text>
 +      <Text fz="sm">
 +        It is based on the LikeC4 playground (<Anchor href="https://likec4.dev" target="_blank">likec4.dev</Anchor>),
@@ -560,7 +597,7 @@ index 0000000..a5a3630
 +        Davydkov.
 +      </Text>
 +      <Text fz="sm">
-+        <Anchor href="/LICENSE-LikeC4.txt" target="_blank">LikeC4 license text</Anchor>
++        <Anchor href={`${import.meta.env.BASE_URL}LICENSE-LikeC4.txt`} target="_blank">LikeC4 license text</Anchor>
 +      </Text>
 +    </Stack>
 +  )
@@ -1013,6 +1050,34 @@ index 39d56e5..d68ded7 100644
        setLayoutedModelApi?.(null)
        logger.debug`cleanDisposables`
        cleanDisposables(disposables)
+diff --git a/apps/playground/src/router.tsx b/apps/playground/src/router.tsx
+index c5dcbb2..c00122d 100644
+--- a/apps/playground/src/router.tsx
++++ b/apps/playground/src/router.tsx
+@@ -1,7 +1,8 @@
+ import { Box, Button, Code, Group, Notification, ScrollAreaAutosize } from '@mantine/core'
+ import { IconX } from '@tabler/icons-react'
+-import { createRouter as createTanstackRouter, RouterProvider } from '@tanstack/react-router'
++import { createHashHistory, createRouter as createTanstackRouter, RouterProvider } from '@tanstack/react-router'
+ import type { FallbackProps } from 'react-error-boundary'
++import { DEMO } from './aac/mode'
+ import { NotFound } from './components/NotFound'
+ import { routeTree } from './routeTree.gen'
+ 
+@@ -36,9 +37,11 @@ function Fallback({ error, resetErrorBoundary }: FallbackProps) {
+ const router = createTanstackRouter<RouteTree, 'always', true>({
+   routeTree,
+   context: {},
+-  basepath: import.meta.env.BASE_URL,
++  // The demo is served from a static host that has no fallback to index.html (GitHub Pages), so
++  // it keeps the route in the URL hash (.../editor/#/w/model/...) and reloads never hit a 404.
++  basepath: DEMO ? '/' : import.meta.env.BASE_URL,
+   trailingSlash: 'always',
+-  // history: useHasHistory ? createHashHistory() : createBrowserHistory(),
++  ...(DEMO ? { history: createHashHistory() } : {}),
+   defaultErrorComponent: ({ error, reset }) => {
+     return <Fallback error={error} resetErrorBoundary={reset} />
+   },
 diff --git a/apps/playground/src/routes/index.tsx b/apps/playground/src/routes/index.tsx
 index b966e46..1fb7b0f 100644
 --- a/apps/playground/src/routes/index.tsx
@@ -1026,7 +1091,7 @@ index b966e46..1fb7b0f 100644
    },
  })
 diff --git a/apps/playground/src/routes/w.$workspaceId/route.tsx b/apps/playground/src/routes/w.$workspaceId/route.tsx
-index 82ca222..0df2d6a 100644
+index 82ca222..2a5ae04 100644
 --- a/apps/playground/src/routes/w.$workspaceId/route.tsx
 +++ b/apps/playground/src/routes/w.$workspaceId/route.tsx
 @@ -1,15 +1,16 @@
@@ -1035,7 +1100,7 @@ index 82ca222..0df2d6a 100644
 +import { AacEditorLayout } from '$/aac/AacEditorLayout'
 +import { AacHeader } from '$/aac/AacHeader'
 +import { initSaved, recallActiveFile } from '$/aac/saving'
-+import { server } from '$/aac/server'
++import { loadWorkspace } from '$/aac/server'
  import {
    type LayoutedModelApi,
    DrawioContextMenuProvider,
@@ -1050,11 +1115,12 @@ index 82ca222..0df2d6a 100644
  import { useMediaQuery } from '@mantine/hooks'
  import { createFileRoute, Outlet } from '@tanstack/react-router'
  import { useState } from 'react'
-@@ -18,30 +19,20 @@ import * as styles from '../styles.css'
+@@ -18,30 +19,21 @@ import * as styles from '../styles.css'
  
  export const Route = createFileRoute('/w/$workspaceId')({
    component: WorkspaceContextPage,
-+  // The workspace is the model on the editor server. It is read once; later saves go back to the server.
++  // The workspace is the model on the editor server (in the demo build: the static workspace.json).
++  // It is read once; later saves go back to the server (the demo saves nothing).
 +  staleTime: Infinity,
    loader: async ({ params }): Promise<{
      workspaceId: string
@@ -1080,7 +1146,7 @@ index 82ca222..0df2d6a 100644
 -      activeFilename: Examples.blank.currentFilename,
 -      ...Examples.blank,
 -    }
-+    const { files } = await server.workspace()
++    const { files } = await loadWorkspace()
 +    initSaved(files)
 +    const names = Object.keys(files)
 +    const remembered = recallActiveFile()
@@ -1089,7 +1155,7 @@ index 82ca222..0df2d6a 100644
    },
  })
  
-@@ -61,7 +52,7 @@ function WorkspaceContextPage() {
+@@ -61,7 +53,7 @@ function WorkspaceContextPage() {
        <DrawioContextMenuProvider layoutedModelApi={layoutedModelApi}>
          <AppShell header={{ height: 50 }}>
            <AppShellHeader>
@@ -1098,7 +1164,7 @@ index 82ca222..0df2d6a 100644
            </AppShellHeader>
            <AppShellMain h={'100dvh'}>
              <Group
-@@ -75,10 +66,9 @@ function WorkspaceContextPage() {
+@@ -75,10 +67,9 @@ function WorkspaceContextPage() {
                  collapsible={true}
                  minSize={'10'}
                  defaultSize={'60'}>

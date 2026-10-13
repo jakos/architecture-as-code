@@ -1,12 +1,27 @@
+diff --git a/apps/playground/src/aac/mode.ts b/apps/playground/src/aac/mode.ts
+new file mode 100644
+index 0000000..4c5c23f
+--- /dev/null
++++ b/apps/playground/src/aac/mode.ts
+@@ -0,0 +1,8 @@
++/**
++ * Demo mode: a static build of the editor (`vite build --mode demo`) that has no server.
++ *
++ * The model is read from a `workspace.json` next to index.html, edits stay in memory and are
++ * never saved. Server mode (the normal build, mode `production`) is the default. The check is
++ * a build-time constant, so the demo bundle holds none of the server API calls.
++ */
++export const DEMO = import.meta.env.MODE === 'demo'
 diff --git a/apps/playground/src/aac/saving.ts b/apps/playground/src/aac/saving.ts
 new file mode 100644
-index 0000000..3e2ef53
+index 0000000..40aace0
 --- /dev/null
 +++ b/apps/playground/src/aac/saving.ts
-@@ -0,0 +1,112 @@
+@@ -0,0 +1,118 @@
 +import { useStore } from '@nanostores/react'
 +import { atom } from 'nanostores'
 +import { useMemo } from 'react'
++import { DEMO } from './mode'
 +import { errorMessage, server } from './server'
 +
 +export type FileSaveState = 'saved' | 'saving' | 'unsaved' | 'error'
@@ -78,8 +93,12 @@ index 0000000..3e2ef53
 +  return allSaved
 +}
 +
-+/** Writes every changed file to the server, one request at a time. Resolves true if all were saved. */
++/**
++ * Writes every changed file to the server, one request at a time. Resolves true if all were saved.
++ * In the demo nothing is written anywhere: it resolves true without a request.
++ */
 +export function saveAll(files: Record<string, string>): Promise<boolean> {
++  if (DEMO) return Promise.resolve(true)
 +  const run = chain.then(() => saveDirty(files))
 +  chain = run.catch(() => undefined)
 +  return run
@@ -88,6 +107,7 @@ index 0000000..3e2ef53
 +/** Called by the playground state machine in place of the localStorage write. */
 +export function persistWorkspace(context: { files: Record<string, string>; activeFilename: string }) {
 +  rememberActiveFile(context.activeFilename)
++  if (DEMO) return // the demo keeps the text in memory only
 +  void saveAll(context.files)
 +}
 +
@@ -118,16 +138,22 @@ index 0000000..3e2ef53
 +}
 diff --git a/apps/playground/src/aac/server.ts b/apps/playground/src/aac/server.ts
 new file mode 100644
-index 0000000..99147b2
+index 0000000..b2eb493
 --- /dev/null
 +++ b/apps/playground/src/aac/server.ts
-@@ -0,0 +1,70 @@
+@@ -0,0 +1,102 @@
 +/**
 + * Client for the model editor server (tools/web_editor.py).
 + *
 + * Same origin only: the browser sends its own Basic auth credentials, this code never sees
 + * or stores the password.
++ *
++ * In the demo build (see mode.ts) there is no server: `server` is replaced by a stand-in that
++ * reads the static workspace.json and refuses everything else, and the server calls below are
++ * not part of the bundle.
 + */
++
++import { DEMO } from './mode'
 +
 +export type Problem = {
 +  /** Path relative to the model directory, or null when the tool output has no file. */
@@ -179,7 +205,7 @@ index 0000000..99147b2
 +  return data as T
 +}
 +
-+export const server = {
++const serverApi = {
 +  workspace: () => call<WorkspacePayload>('GET', '/api/workspace'),
 +  status: () => call<StatusPayload>('GET', '/api/status'),
 +  saveFile: (path: string, text: string) =>
@@ -187,6 +213,32 @@ index 0000000..99147b2
 +  validate: () => call<ValidatePayload>('POST', '/api/validate', {}),
 +  format: () => call<FormatPayload>('POST', '/api/format', {}),
 +  submit: (message: string) => call<SubmitPayload>('POST', '/api/submit', { message }),
++}
++
++const unavailable = (): Promise<never> =>
++  Promise.reject(new ServerError(0, 'Not available in the demo'))
++
++/** The demo has no server: the workspace is the static file next to index.html, nothing else. */
++const demoApi: typeof serverApi = {
++  workspace: async () => {
++    const response = await fetch(`${import.meta.env.BASE_URL}workspace.json`, { cache: 'no-store' })
++    if (!response.ok) throw new ServerError(response.status, 'The demo workspace could not be loaded')
++    const data = await response.json()
++    return { branch: '', files: data.files as Record<string, string> }
++  },
++  status: unavailable,
++  saveFile: unavailable,
++  validate: unavailable,
++  format: unavailable,
++  submit: unavailable,
++}
++
++export const server: typeof serverApi = DEMO ? demoApi : serverApi
++
++/** The model's files: from the editor server, or from workspace.json in the demo. */
++export async function loadWorkspace(): Promise<{ files: Record<string, string> }> {
++  const { files } = await server.workspace()
++  return { files }
 +}
 +
 +export function errorMessage(err: unknown): string {

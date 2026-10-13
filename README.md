@@ -23,6 +23,8 @@ team, and written multi-user scenarios such as parallel edits and merge conflict
 
 [View the model](https://jakos.github.io/architecture-as-code/) as a browsable LikeC4 site,
 published from `main` on GitHub Pages.
+[Try the editor](https://jakos.github.io/architecture-as-code/editor/) in the browser on the same
+model: a demo, your edits stay in the tab and are not saved.
 
 ## Quick start
 
@@ -53,7 +55,7 @@ Early draft. [docs/workflow.md](docs/workflow.md) has the detail.
 | Edit `.c4` files in the repo, live render with `just up` | Browser editor that opens PRs: local proof of concept only, it commits to a `model/*` branch and does not open the PR itself |
 | Validation gate locally, on pre-push and in CI (`just check`) | Drift check against Kubernetes, read-only (planned) |
 | Static site built and served locally (`just site`) | Generating Kubernetes objects (planned) |
-| Example site published on GitHub Pages from `main` (CI) | |
+| Example site published on GitHub Pages from `main` (CI), with a demo of the model editor under `/editor/` (nothing is saved) | |
 | Example multi-team model in `examples/shop` | |
 
 ## Docs

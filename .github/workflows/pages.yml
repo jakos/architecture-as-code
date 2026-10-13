@@ -1,7 +1,9 @@
 # Publishes the LikeC4 site of examples/shop to GitHub Pages (ADR 0010).
 # - Pages must be enabled with source "GitHub Actions" (an owner step in repo settings).
-# - /editor/ on the Pages site is reserved for the editor demo: build it into build/pages/editor/
-#   after the viewer build, because `just pages-build` replaces the whole build/pages directory.
+# - /editor/ on the Pages site is the editor demo (ADR 0011). The app takes about 11 minutes to
+#   build (`just editor-demo-app`), so build/editor-demo-app is cached on a hash of what goes into
+#   it; a model change only re-runs `just editor-demo-assemble`, which writes workspace.json and
+#   must run after `just pages-build` because that replaces the whole build/pages directory.
 # - Pull requests build the site only; the artifact upload and the deploy run on main.
 name: pages
 
@@ -27,6 +29,19 @@ jobs:
         run: just pages-build HEAD
       - name: Check the site was built
         run: test -f build/pages/index.html
+      - name: Restore the editor demo app
+        id: demo-cache
+        uses: actions/cache@v6
+        with:
+          path: build/editor-demo-app
+          key: editor-demo-app-${{ hashFiles('docker/editor/model-editor/Containerfile', 'docker/editor/model-editor/patches/**', 'tools/editor_demo.py', 'tools/viewer.py', 'justfile') }}
+      - name: Build the editor demo app
+        if: steps.demo-cache.outputs.cache-hit != 'true'
+        run: just editor-demo-app
+      - name: Add the editor demo to the site
+        run: just editor-demo-assemble HEAD
+      - name: Check the editor demo was built
+        run: test -f build/pages/editor/index.html && test -f build/pages/editor/workspace.json
       - name: Upload the site
         if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
         uses: actions/upload-pages-artifact@v5

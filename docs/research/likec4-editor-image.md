@@ -76,6 +76,22 @@ redirect route that the generated router would otherwise import. Nothing else up
 the Share, Login and Playgrounds components and the examples stay in the tree but nothing imports
 them, so they are not in the bundle.
 
+### Patch set size with demo mode (2026-10-13, `just playground-patches-stat`)
+
+The table above is the size when the spike ended. Demo mode (`editor-demo-pages`,
+[ADR 0011](../decisions/0011-editor-demo-on-github-pages.md)) and the earlier editor work
+(follow-the-file, hover and the like) are in the same three patches now:
+
+| Patch | Existing upstream files (of which deleted) | Lines added | Lines removed | New files | New lines |
+| --- | --- | --- | --- | --- | --- |
+| `0001-remove-cloud-features.patch` | 9 (6) | 4 | 371 | 0 | 0 |
+| `0002-server-workspace.patch` | 1 (0) | 8 | 14 | 3 | 228 |
+| `0003-editor-ui.patch` | 4 (0) | 29 | 30 | 7 | 980 |
+| **Total** | **14 (6)** | **41** | **415** | **10** | **1208** |
+
+Lines changed in existing upstream files: 41 added + 415 removed = **456**, in **14** files.
+Demo mode adds `src/aac/mode.ts` (0002) and changes `src/router.tsx` (0003, one new existing file).
+
 ### Image (verified locally)
 
 - `just model-editor-build`, cold (`podman build --no-cache`): 11 min 15 s (675 s; the same command as the recipe plus `--no-cache`, on a machine where the base image and the apt and npm downloads were warm). The log shows
