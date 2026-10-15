@@ -51,8 +51,13 @@ LikeC4 version ([ADR 0012](../../../docs/decisions/0012-release-the-editor-image
   (first release `0.1.0`), pushed on a commit that is on `main`. The workflow
   `.github/workflows/editor-image.yml` builds the image with `--build-arg IMAGE_VERSION=X.Y.Z`
   and pushes the tags `X.Y.Z` (immutable) and `X.Y` (newest patch of that minor). There is no
-  `latest`. It refuses a malformed tag, a commit that is not on `main` and a version that is
-  already in the registry.
+  `latest`. It refuses a malformed tag, a commit that is not on `main`, a version that is
+  already in the registry and an older patch than one already tagged for the same `X.Y` (the
+  moving `X.Y` tag would go back). A registry error other than "not found" fails the release
+  instead of being read as "not released". On the first release, a `denied` or `unauthorized`
+  failure in the step "Refuse a version that is already released" means the not-found answer
+  looked different from what `check_unreleased` in `tools/editor_release.py` expects; add that
+  output to its pattern list.
 - Semantic versioning: patch for fixes; minor for new features and for a LikeC4 upgrade; major
   for a breaking change of the run contract (environment variables, port, volume paths). While
   the version is `0.x`, a breaking change may bump minor instead.
@@ -77,11 +82,12 @@ your repository):
 ```
 podman run --rm -p 8097:8080 \
   -e REPO_URL=<remote of the model repo> -e MODEL_PATH=<model directory in the repo> \
-  -e PASSWORD=<password> -e MODEL_USER=<your name> -e MODEL_SLUG=<short topic> \
+  -e PASSWORD=<password> -e MODEL_USER=<lowercase user id, e.g. jkostrzewa> -e MODEL_SLUG=<short topic> \
   ghcr.io/jakos/likec4-model-editor:0.1
 ```
 
-The server listens on port 8080 in the container. The module docstring of
+`MODEL_USER` must match `^[a-z0-9][a-z0-9._-]*$` (lowercase letters, digits, `.`, `_`, `-`); it
+becomes part of the branch name. The server listens on port 8080 in the container. The module docstring of
 `docker/editor/entrypoint.py` lists all environment variables.
 
 LikeC4 version per release (filled in when a release is made; none yet):
@@ -132,7 +138,7 @@ just pages-up                  # serves build/pages on http://127.0.0.1:8083/arc
   does nothing and leaving the page never asks. The language server in the browser still shows
   errors, completion and hover.
 - CI (`.github/workflows/pages.yml`) caches `build/editor-demo-app` on a hash of the Containerfile,
-  the patches, `tools/editor_demo.py`, `tools/viewer.py` and the `justfile`.
+  the patches, `tools/editor_demo.py`, `tools/viewer.py`, the `justfile` and `LICENSE`.
 
 ## Change the patches
 
@@ -152,7 +158,9 @@ image (the Containerfile runs `pnpm run typecheck`).
 ## Upgrade LikeC4
 
 1. Pick the new tag. Bump together: the global `ARG LIKEC4_TAG` and `ARG LIKEC4_COMMIT` in the
-   `Containerfile` (one place; the stages only redeclare them), `likec4_image` in the
+   `Containerfile` (the only place for the playground pin; the stages only redeclare them) and the
+   `npm install -g likec4@<version>` in the runtime stage of the same `Containerfile`,
+   `likec4_image` in the
    `justfile`, `IMAGE` in `tools/validate_models.py`, the other two editor Containerfiles, and
    the image tag in the `justfile` and Compose file.
 2. Check the patches without building anything:

@@ -34,7 +34,7 @@ jobs:
         uses: actions/cache@v6
         with:
           path: build/editor-demo-app
-          key: editor-demo-app-${{ hashFiles('docker/editor/model-editor/Containerfile', 'docker/editor/model-editor/patches/**', 'tools/editor_demo.py', 'tools/viewer.py', 'justfile') }}
+          key: editor-demo-app-${{ hashFiles('docker/editor/model-editor/Containerfile', 'docker/editor/model-editor/patches/**', 'tools/editor_demo.py', 'tools/viewer.py', 'justfile', 'LICENSE') }}
       - name: Build the editor demo app
         if: steps.demo-cache.outputs.cache-hit != 'true'
         run: just editor-demo-app

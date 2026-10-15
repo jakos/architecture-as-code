@@ -3,8 +3,10 @@
 # - Pushing the git tag likec4-model-editor-vX.Y.Z is the release: the image gets the tags X.Y.Z
 #   (immutable) and X.Y (newest patch of the minor). No `latest`. The image has its own semantic
 #   version; the LikeC4 version it is built on is an image label, not part of the version.
-# - The release job refuses a tag that is not on main, and a version that is already in the
-#   registry. It logs in with the workflow's own GITHUB_TOKEN; there is no stored credential.
+# - The release job refuses a tag that is not on main, a version that is already in the
+#   registry, and an older patch than one already tagged for the same X.Y (the moving X.Y tag
+#   would go back). A registry error other than "not found" fails the job; it is never read as
+#   "not released". It logs in with the workflow's own GITHUB_TOKEN; there is no stored credential.
 # - A package created by a workflow push starts private; making it public is an owner setting
 #   (package settings on GitHub), not done here.
 # - Pull requests that touch the image only build it and check it; they do not log in or push.
@@ -68,12 +70,15 @@ jobs:
       - uses: astral-sh/setup-uv@v10.3.0
       - name: Check the tagged commit is on main
         run: |
+          git fetch --tags --force origin
           git fetch origin main
           git merge-base --is-ancestor "$GITHUB_SHA" origin/main \
             || { echo "::error::$GITHUB_REF_NAME is not on main; releases are made from main only"; exit 1; }
       - name: Map the tag to the image version and tags
         id: release
-        run: uv run --locked python tools/editor_release.py tags "$GITHUB_REF_NAME" >> "$GITHUB_OUTPUT"
+        run: |
+          # unquoted on purpose: one argument per release tag (they contain no spaces)
+          uv run --locked python tools/editor_release.py tags "$GITHUB_REF_NAME" --released $(git tag --list 'likec4-model-editor-v*') >> "$GITHUB_OUTPUT"
       - name: Log in to GHCR
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -82,10 +87,11 @@ jobs:
         env:
           REF: ${{ steps.release.outputs.ref }}
         run: |
-          if docker manifest inspect "$REF" > /dev/null 2>&1; then
-            echo "::error::$REF already exists; a released version is never overwritten. Bump the version."
-            exit 1
-          fi
+          set +e
+          out=$(docker manifest inspect "$REF" 2>&1)
+          rc=$?
+          set -e
+          printf '%s' "$out" | uv run --locked python tools/editor_release.py check-unreleased "$REF" --inspect-exit "$rc" || { echo "::error::cannot release $REF; see the line above"; exit 1; }
       - name: Build the image
         env:
           VERSION: ${{ steps.release.outputs.version }}
