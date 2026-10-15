@@ -1,0 +1,119 @@
+# Releases LikeC4 Model Editor (docker/editor/model-editor) as ghcr.io/jakos/likec4-model-editor
+# (ADR 0012).
+# - Pushing the git tag likec4-model-editor-vX.Y.Z is the release: the image gets the tags X.Y.Z
+#   (immutable) and X.Y (newest patch of the minor). No `latest`. The image has its own semantic
+#   version; the LikeC4 version it is built on is an image label, not part of the version.
+# - The release job refuses a tag that is not on main, and a version that is already in the
+#   registry. It logs in with the workflow's own GITHUB_TOKEN; there is no stored credential.
+# - A package created by a workflow push starts private; making it public is an owner setting
+#   (package settings on GitHub), not done here.
+# - Pull requests that touch the image only build it and check it; they do not log in or push.
+#   The build takes about 11 minutes.
+name: editor-image
+
+on:
+  push:
+    tags: ['likec4-model-editor-v*']
+  pull_request:
+    paths:
+      - docker/editor/model-editor/Containerfile
+      - docker/editor/model-editor/patches/**
+      - docker/editor/entrypoint.py
+      - tools/web_editor.py
+      - tools/submit.py
+      - tools/model_source.py
+      - tools/poc_remote.py
+      - tools/editor_release.py
+      - LICENSE
+      - .github/workflows/editor-image.yml
+
+permissions:
+  contents: read
+
+env:
+  CONTAINERFILE: docker/editor/model-editor/Containerfile
+  STATIC: /usr/local/share/model-editor
+
+jobs:
+  build:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+      - name: Build the image
+        run: docker build -f "$CONTAINERFILE" -t editor-image-check .
+      - name: Check the labels
+        run: |
+          docker image inspect --format '{{json .Config.Labels}}' editor-image-check
+          docker image inspect --format '{{index .Config.Labels "org.opencontainers.image.title"}}' editor-image-check | grep -qx 'LikeC4 Model Editor'
+          docker image inspect --format '{{index .Config.Labels "org.opencontainers.image.source"}}' editor-image-check | grep -qx 'https://github.com/jakos/architecture-as-code'
+          docker image inspect --format '{{index .Config.Labels "org.opencontainers.image.licenses"}}' editor-image-check | grep -qx 'MIT'
+          docker image inspect --format '{{index .Config.Labels "org.opencontainers.image.description"}}' editor-image-check | grep -q '^Edit a LikeC4 architecture model in the browser'
+          docker image inspect --format '{{index .Config.Labels "io.github.jakos.architecture-as-code.likec4-version"}}' editor-image-check | grep -q '1\.'
+      - name: Check the licence files and the app name
+        run: >
+          docker run --rm --entrypoint sh editor-image-check -c
+          "test -f $STATIC/LICENSE-LikeC4.txt && test -f $STATIC/LICENSE.txt && grep -q '<title>LikeC4 Model Editor</title>' $STATIC/index.html"
+
+  release:
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/likec4-model-editor-v')
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - uses: astral-sh/setup-uv@v10.3.0
+      - name: Check the tagged commit is on main
+        run: |
+          git fetch origin main
+          git merge-base --is-ancestor "$GITHUB_SHA" origin/main \
+            || { echo "::error::$GITHUB_REF_NAME is not on main; releases are made from main only"; exit 1; }
+      - name: Map the tag to the image version and tags
+        id: release
+        run: uv run --locked python tools/editor_release.py tags "$GITHUB_REF_NAME" >> "$GITHUB_OUTPUT"
+      - name: Log in to GHCR
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: echo "$GITHUB_TOKEN" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+      - name: Refuse a version that is already released
+        env:
+          REF: ${{ steps.release.outputs.ref }}
+        run: |
+          if docker manifest inspect "$REF" > /dev/null 2>&1; then
+            echo "::error::$REF already exists; a released version is never overwritten. Bump the version."
+            exit 1
+          fi
+      - name: Build the image
+        env:
+          VERSION: ${{ steps.release.outputs.version }}
+          TAGS: ${{ steps.release.outputs.tags }}
+        run: |
+          tag_args=""
+          for t in $TAGS; do tag_args="$tag_args -t $t"; done
+          docker build -f "$CONTAINERFILE" --build-arg "IMAGE_VERSION=$VERSION" $tag_args .
+      - name: Check the labels
+        env:
+          REF: ${{ steps.release.outputs.ref }}
+          VERSION: ${{ steps.release.outputs.version }}
+        run: |
+          docker image inspect --format '{{json .Config.Labels}}' "$REF"
+          docker image inspect --format '{{index .Config.Labels "org.opencontainers.image.title"}}' "$REF" | grep -qx 'LikeC4 Model Editor'
+          docker image inspect --format '{{index .Config.Labels "org.opencontainers.image.source"}}' "$REF" | grep -qx 'https://github.com/jakos/architecture-as-code'
+          docker image inspect --format '{{index .Config.Labels "org.opencontainers.image.licenses"}}' "$REF" | grep -qx 'MIT'
+          docker image inspect --format '{{index .Config.Labels "org.opencontainers.image.description"}}' "$REF" | grep -q '^Edit a LikeC4 architecture model in the browser'
+          docker image inspect --format '{{index .Config.Labels "org.opencontainers.image.version"}}' "$REF" | grep -qx "$VERSION"
+          docker image inspect --format '{{index .Config.Labels "io.github.jakos.architecture-as-code.likec4-version"}}' "$REF" | grep -q '1\.'
+      - name: Check the licence files and the app name
+        env:
+          REF: ${{ steps.release.outputs.ref }}
+        run: >
+          docker run --rm --entrypoint sh "$REF" -c
+          "test -f $STATIC/LICENSE-LikeC4.txt && test -f $STATIC/LICENSE.txt && grep -q '<title>LikeC4 Model Editor</title>' $STATIC/index.html"
+      - name: Publish the tags
+        env:
+          TAGS: ${{ steps.release.outputs.tags }}
+        run: |
+          for t in $TAGS; do docker push "$t"; done

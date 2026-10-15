@@ -71,6 +71,12 @@ much of the playground the patches change. Details, measurements and the upgrade
 `docker/editor/model-editor/README.md`. It replaces the textarea page (`likec4-web`), which
 stays until a follow-up removes it.
 
+The image is released as LikeC4 Model Editor, `ghcr.io/jakos/likec4-model-editor`, with its own
+version from a release tag `likec4-model-editor-vX.Y.Z`
+([ADR 0012](decisions/0012-release-the-editor-image-as-likec4-model-editor.md),
+`.github/workflows/editor-image.yml`). It is not pushed yet: the owner releases it by pushing the
+first tag.
+
 "No push to `main`" is enforced by the script and, later, by branch protection.
 
 ## Deploy 1: publish a browsable site ✅ locally, ✅ CI (GitHub Pages)

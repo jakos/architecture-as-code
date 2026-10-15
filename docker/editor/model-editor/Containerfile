@@ -1,6 +1,14 @@
-# Model editor (local PoC): the LikeC4 playground at a pinned tag plus our patch set, served by
-# tools/web_editor.py on a git clone. Build from the repo root: just model-editor-build
-# (needs network access to GitHub and npm; takes several minutes).
+# LikeC4 Model Editor: "Edit a LikeC4 architecture model in the browser and propose changes for
+# review, no git knowledge needed." The LikeC4 playground at a pinned tag plus our patch set,
+# served by tools/web_editor.py on a git clone.
+# Community project based on LikeC4, not affiliated with it.
+# Build from the repo root: just model-editor-build (needs network access to GitHub and npm; takes
+# several minutes).
+#
+# Version: the image has its own version (semantic versioning), passed as --build-arg
+# IMAGE_VERSION=X.Y.Z by the release workflow (.github/workflows/editor-image.yml); a plain
+# build is labelled "dev". The LikeC4 version it is built on is the label
+# io.github.jakos.architecture-as-code.likec4-version, not the image version.
 #
 # Build stage: clone the tag, check the commit, install the locked dependencies, apply
 # docker/editor/model-editor/patches in order (the build fails if one does not apply), build and
@@ -16,7 +24,12 @@
 #
 # Based on LikeC4 (https://likec4.dev), MIT licence, Copyright (c) 2023-2026 Denis Davydkov.
 # The licence text is copied into the image (see the About entry in the editor).
-# Licences: LikeC4 MIT; Node.js MIT; the patches, web_editor.py and submit.py are this repo's code.
+# Licences: LikeC4 MIT; Node.js MIT; the patches, web_editor.py and submit.py are this repo's code
+# (MIT). Both licence texts are in the image: LICENSE-LikeC4.txt and LICENSE.txt.
+
+# The LikeC4 pin, in one place (global scope so that the runtime stage can label it).
+ARG LIKEC4_TAG=v1.59.4
+ARG LIKEC4_COMMIT=33dbc2d34c399a99daf96e92fc28fe5d280a7fd5
 
 FROM docker.io/library/node:22.22.3-trixie-slim AS build
 # apt packages are not version-pinned: they come from the Debian trixie archive at build time.
@@ -25,8 +38,8 @@ RUN apt-get update \
     && rm -rf /var/lib/apt/lists/* \
     && npm install -g pnpm@11.25.0
 WORKDIR /src
-ARG LIKEC4_TAG=v1.59.4
-ARG LIKEC4_COMMIT=33dbc2d34c399a99daf96e92fc28fe5d280a7fd5
+ARG LIKEC4_TAG
+ARG LIKEC4_COMMIT
 RUN git clone --depth 1 --branch "${LIKEC4_TAG}" https://github.com/likec4/likec4.git . \
     && actual="$(git rev-parse HEAD)" \
     && echo "LikeC4 ${LIKEC4_TAG} is commit ${actual}" \
@@ -53,6 +66,7 @@ RUN pnpm exec vite build --mode demo --base "${DEMO_BASE}" \
     && mkdir /demo \
     && cp -r dist/client/. /demo/ \
     && cp /src/LICENSE /demo/LICENSE-LikeC4.txt
+COPY LICENSE /demo/LICENSE.txt
 
 FROM scratch AS demo
 COPY --from=demo-build /demo /demo
@@ -69,6 +83,7 @@ RUN apt-get update \
 
 COPY --from=build /src/apps/playground/dist/client /usr/local/share/model-editor
 COPY --from=build /src/LICENSE /usr/local/share/model-editor/LICENSE-LikeC4.txt
+COPY LICENSE /usr/local/share/model-editor/LICENSE.txt
 COPY tools/submit.py tools/model_source.py tools/web_editor.py tools/poc_remote.py \
      docker/editor/entrypoint.py /usr/local/lib/poc/
 
@@ -78,3 +93,15 @@ WORKDIR /home/coder
 ENV RENDERER=likec4 MODEL_PATH=examples/shop EDITOR_UI=playground
 EXPOSE 8080
 ENTRYPOINT ["python3", "/usr/local/lib/poc/entrypoint.py"]
+
+ARG LIKEC4_TAG
+ARG IMAGE_VERSION=dev
+# Podman (Buildah) reuses a cached LABEL layer when only a build-arg changed; a RUN that names
+# the argument has the value in its cache key, so a new IMAGE_VERSION always reaches the labels.
+RUN echo "image version: ${IMAGE_VERSION}"
+LABEL org.opencontainers.image.title="LikeC4 Model Editor" \
+      org.opencontainers.image.description="Edit a LikeC4 architecture model in the browser and propose changes for review, no git knowledge needed. Community project based on LikeC4 ${LIKEC4_TAG} (https://likec4.dev), not affiliated with it." \
+      org.opencontainers.image.source="https://github.com/jakos/architecture-as-code" \
+      org.opencontainers.image.licenses="MIT" \
+      org.opencontainers.image.version="${IMAGE_VERSION}" \
+      io.github.jakos.architecture-as-code.likec4-version="${LIKEC4_TAG#v}"

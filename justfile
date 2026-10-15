@@ -60,6 +60,10 @@ playground-up:
 model-editor-build:
     {{engine}} build -f docker/editor/model-editor/Containerfile -t localhost/aac-model-editor:v1.59.4 .
 
+# Dry run of the release tag mapping for the model editor image: prints version, image and image tags (builds nothing, publishes nothing)
+editor-release-tags tag:
+    uv run --locked python tools/editor_release.py tags {{tag}}
+
 # Static editor demo for Pages, app part: the playground plus our patches built in Vite mode `demo`
 # under pages_base + editor/ (needs GitHub and npm, takes minutes; reuses the cached build stage of model-editor-build)
 editor-demo-app:
