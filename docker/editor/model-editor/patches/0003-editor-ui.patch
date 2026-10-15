@@ -330,10 +330,10 @@ index 0000000..f50707b
 +}
 diff --git a/apps/playground/src/aac/AacHeader.tsx b/apps/playground/src/aac/AacHeader.tsx
 new file mode 100644
-index 0000000..c4d67ad
+index 0000000..7d93dc3
 --- /dev/null
 +++ b/apps/playground/src/aac/AacHeader.tsx
-@@ -0,0 +1,239 @@
+@@ -0,0 +1,236 @@
 +import { usePlayground, usePlaygroundContext } from '$hooks/usePlayground'
 +import { ActionIcon, Badge, Button, Group, Text, Tooltip } from '@mantine/core'
 +import { modals } from '@mantine/modals'
@@ -500,10 +500,7 @@ index 0000000..c4d67ad
 +  return (
 +    <Group h="100%" px="md" justify="space-between" align="center" wrap="nowrap">
 +      <Group gap="md" align="center" wrap="nowrap">
-+        <Group gap={6} align="baseline" wrap="nowrap">
-+          <Text fw={700} fz="md">Model editor</Text>
-+          <Text fz={10} c="dimmed" visibleFrom="md">based on LikeC4</Text>
-+        </Group>
++        <Text fw={700} fz="md">LikeC4 Model Editor</Text>
 +        {DEMO
 +          ? (
 +            <Badge variant="light" color="yellow" tt="none" data-testid="demo-label">
@@ -575,10 +572,10 @@ index 0000000..c4d67ad
 +}
 diff --git a/apps/playground/src/aac/AboutContent.tsx b/apps/playground/src/aac/AboutContent.tsx
 new file mode 100644
-index 0000000..5f2e7ec
+index 0000000..7d0a833
 --- /dev/null
 +++ b/apps/playground/src/aac/AboutContent.tsx
-@@ -0,0 +1,23 @@
+@@ -0,0 +1,30 @@
 +import { Anchor, Stack, Text } from '@mantine/core'
 +import { DEMO } from './mode'
 +
@@ -588,13 +585,20 @@ index 0000000..5f2e7ec
 +    <Stack gap="xs">
 +      <Text fz="sm">
 +        {DEMO
-+          ? 'This is a demo of the model editor with the example shop model. Your changes stay in this browser tab and are never saved; reloading the page resets the text.'
-+          : 'This model editor edits the LikeC4 model of your team in a git branch. Your changes are saved to the branch on the editor server and go to review when you press Submit.'}
++          ? 'This is a demo of LikeC4 Model Editor with the example shop model. Your changes stay in this browser tab and are never saved; reloading the page resets the text.'
++          : 'LikeC4 Model Editor edits the LikeC4 model of your team in a git branch. Your changes are saved to the branch on the editor server and go to review when you press Submit.'}
++      </Text>
++      <Text fz="sm" fw={600}>
++        Community project based on LikeC4, not affiliated with it.
 +      </Text>
 +      <Text fz="sm">
 +        It is based on the LikeC4 playground (<Anchor href="https://likec4.dev" target="_blank">likec4.dev</Anchor>),
 +        version 1.59.4, with our changes applied as a patch set. LikeC4 is MIT licensed, Copyright (c) 2023-2026 Denis
 +        Davydkov.
++      </Text>
++      <Text fz="sm">
++        LikeC4 Model Editor is MIT licensed, Copyright (c) 2026 Jakub Kostrzewa.{' '}
++        <Anchor href={`${import.meta.env.BASE_URL}LICENSE.txt`} target="_blank">License text</Anchor>
 +      </Text>
 +      <Text fz="sm">
 +        <Anchor href={`${import.meta.env.BASE_URL}LICENSE-LikeC4.txt`} target="_blank">LikeC4 license text</Anchor>

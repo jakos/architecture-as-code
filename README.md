@@ -75,7 +75,11 @@ part of LikeC4 or endorsed by it. Validation, formatting, the live diagram and t
 site all come from the pinned LikeC4 image. The browser editor is the LikeC4 playground,
 built from source at the pinned tag with a small patch set
 ([`docker/editor/model-editor`](docker/editor/model-editor/README.md),
-[ADR 0007](docs/decisions/0007-model-editor-on-likec4-playground.md)). This repo adds the
+[ADR 0007](docs/decisions/0007-model-editor-on-likec4-playground.md)). The editor image is
+released as LikeC4 Model Editor: edit a LikeC4 architecture model in the browser and propose
+changes for review, no git knowledge needed
+([ADR 0012](docs/decisions/0012-release-the-editor-image-as-likec4-model-editor.md)).
+Community project based on LikeC4, not affiliated with it (nor endorsed by it). This repo adds the
 model layout, team ownership, CI checks, the editor's server and the git workflow.
 
 ## License

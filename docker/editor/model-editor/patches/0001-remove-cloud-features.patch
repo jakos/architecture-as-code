@@ -1,5 +1,5 @@
 diff --git a/apps/playground/index.html b/apps/playground/index.html
-index 0548ab6..b26542e 100644
+index 0548ab6..4dc0225 100644
 --- a/apps/playground/index.html
 +++ b/apps/playground/index.html
 @@ -5,21 +5,9 @@
@@ -19,10 +19,10 @@ index 0548ab6..b26542e 100644
 -  <meta name="description" content="Architecture-as-a-code and toolchain for your architecture diagrams" />
 -  <meta property="og:image" content="/og.png">
 -  <meta name="twitter:image" content="/og.png">
-+  <meta name="description" content="Model editor, based on LikeC4" />
++  <meta name="description" content="LikeC4 Model Editor, a community project based on LikeC4" />
    <link rel="stylesheet" href="/src/index.css">
 -  <title>LikeC4 Playground</title>
-+  <title>Model editor</title>
++  <title>LikeC4 Model Editor</title>
  </head>
  
  <body>
