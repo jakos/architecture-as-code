@@ -26,6 +26,7 @@ on:
       - tools/model_source.py
       - tools/poc_remote.py
       - tools/editor_release.py
+      - tools/third_party_notices.py
       - LICENSE
       - .github/workflows/editor-image.yml
 
@@ -52,10 +53,10 @@ jobs:
           docker image inspect --format '{{index .Config.Labels "org.opencontainers.image.licenses"}}' editor-image-check | grep -qx 'MIT'
           docker image inspect --format '{{index .Config.Labels "org.opencontainers.image.description"}}' editor-image-check | grep -q '^Edit a LikeC4 architecture model in the browser'
           docker image inspect --format '{{index .Config.Labels "io.github.jakos.architecture-as-code.likec4-version"}}' editor-image-check | grep -q '1\.'
-      - name: Check the licence files and the app name
+      - name: Check the licence files, the notices and the app name
         run: >
           docker run --rm --entrypoint sh editor-image-check -c
-          "test -f $STATIC/LICENSE-LikeC4.txt && test -f $STATIC/LICENSE.txt && grep -q '<title>LikeC4 Model Editor</title>' $STATIC/index.html"
+          "test -f $STATIC/LICENSE-LikeC4.txt && test -f $STATIC/LICENSE.txt && test -s $STATIC/THIRD-PARTY-NOTICES.txt && test -s $STATIC/THIRD-PARTY-NOTICES-likec4-cli.txt && grep -q '^Package: react@' $STATIC/THIRD-PARTY-NOTICES.txt && grep -q '<title>LikeC4 Model Editor</title>' $STATIC/index.html"
 
   release:
     if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/likec4-model-editor-v')
@@ -112,12 +113,12 @@ jobs:
           docker image inspect --format '{{index .Config.Labels "org.opencontainers.image.description"}}' "$REF" | grep -q '^Edit a LikeC4 architecture model in the browser'
           docker image inspect --format '{{index .Config.Labels "org.opencontainers.image.version"}}' "$REF" | grep -qx "$VERSION"
           docker image inspect --format '{{index .Config.Labels "io.github.jakos.architecture-as-code.likec4-version"}}' "$REF" | grep -q '1\.'
-      - name: Check the licence files and the app name
+      - name: Check the licence files, the notices and the app name
         env:
           REF: ${{ steps.release.outputs.ref }}
         run: >
           docker run --rm --entrypoint sh "$REF" -c
-          "test -f $STATIC/LICENSE-LikeC4.txt && test -f $STATIC/LICENSE.txt && grep -q '<title>LikeC4 Model Editor</title>' $STATIC/index.html"
+          "test -f $STATIC/LICENSE-LikeC4.txt && test -f $STATIC/LICENSE.txt && test -s $STATIC/THIRD-PARTY-NOTICES.txt && test -s $STATIC/THIRD-PARTY-NOTICES-likec4-cli.txt && grep -q '^Package: react@' $STATIC/THIRD-PARTY-NOTICES.txt && grep -q '<title>LikeC4 Model Editor</title>' $STATIC/index.html"
       - name: Publish the tags
         env:
           TAGS: ${{ steps.release.outputs.tags }}

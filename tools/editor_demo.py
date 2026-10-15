@@ -17,9 +17,10 @@ BASE is the URL path the demo is served under, for example `/architecture-as-cod
 `--out` must be inside `<repo>/build/` and is replaced as a whole. Run `assemble` after
 `viewer.py pages`, which replaces the whole of `build/pages`.
 
-The bundle check refuses to publish files that refer to another origin or to a path outside
-BASE, hold Python, or contain a call to the editor server's API. The tool never commits,
-pushes or changes the repo.
+The bundle check requires LICENSE-LikeC4.txt, LICENSE.txt and a non-empty
+THIRD-PARTY-NOTICES.txt next to index.html, and refuses to publish files that refer to another
+origin or to a path outside BASE, hold Python, or contain a call to the editor server's
+API. The tool never commits, pushes or changes the repo.
 """
 
 import argparse
@@ -45,6 +46,9 @@ IMAGE_TAG = "localhost/aac-editor-demo:v1.59.4"
 DEFAULT_APP = "build/editor-demo-app"
 DEFAULT_OUT = "build/pages/editor"
 MODEL_SUFFIX = ".c4"
+# Licence texts and the generated third-party notices that must sit next to index.html.
+LICENCE_FILES = ("LICENSE-LikeC4.txt", "LICENSE.txt", "THIRD-PARTY-NOTICES.txt")
+NOTICES_FILE = "THIRD-PARTY-NOTICES.txt"
 # Paths of the editor server's API. None of them may be in the published files.
 API_PATHS = (
     b"/api/workspace",
@@ -62,6 +66,11 @@ def check_bundle(app: Path, base: str) -> None:
     index = app / "index.html"
     if not index.is_file():
         raise ViewerError(f"demo app incomplete: {index.as_posix()} not found")
+    for name in LICENCE_FILES:
+        if not (app / name).is_file():
+            raise ViewerError(f"demo app incomplete: {name} not found")
+    if not (app / NOTICES_FILE).stat().st_size:
+        raise ViewerError(f"demo app incomplete: {NOTICES_FILE} is empty")
     text = index.read_text(encoding="utf-8")
     for match in URL_ATTR.finditer(text):
         url = match.group(1) if match.group(1) is not None else match.group(2)
