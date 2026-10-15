@@ -37,8 +37,10 @@ Jakub Kostrzewa), so both notices must travel with it.
   and a table in `docker/editor/model-editor/README.md`.
 - **Release.** Pushing the git tag `likec4-model-editor-vX.Y.Z` runs
   `.github/workflows/editor-image.yml`. `tools/editor_release.py` maps the tag to version and
-  tags (it accepts exactly that form). The workflow refuses a tag whose commit is not on `main`
-  and a version whose `X.Y.Z` tag already exists in the registry. Pull requests that touch the
+  tags (it accepts exactly that form, ASCII digits only). The workflow refuses a tag whose commit
+  is not on `main`, a version whose `X.Y.Z` tag already exists in the registry, and an older patch
+  than one already tagged for the same `X.Y` (the moving `X.Y` tag would go back). A registry
+  error other than "not found" fails the job; it is never read as "not released". Pull requests that touch the
   image build it and check labels and licence files, without login or push.
 - **Home.** Released from this repository for now (owner decision 2026-10-13); it may move to a
   separate repository later.
@@ -55,9 +57,13 @@ Jakub Kostrzewa), so both notices must travel with it.
 - Nothing ties the image version to a LikeC4 upgrade automatically. Forgetting to bump minor on
   an upgrade is possible; the label, the README rule and the refusal to overwrite an existing
   `X.Y.Z` limit the damage.
-- A package created by a workflow push starts private; the owner makes it public. The label
-  `org.opencontainers.image.source` links the package to this repository. Both points are from
-  memory of GitHub's behaviour and not checked against the docs on the day.
+- A package created by a workflow push starts private; the owner makes it public. The docs say
+  "When you first publish a package, the default visibility is private." Publishing from a
+  workflow with `GITHUB_TOKEN` links the workflow's repository automatically, and the label
+  `org.opencontainers.image.source` links the package to this repository; a linked package
+  inherits the repository's access permissions (not its visibility) by default. The docs warn
+  that `GITHUB_TOKEN` cannot push if a package was earlier pushed to the same namespace and not
+  connected to the repository. Checked 2026-10-15, no correction needed.
 - The first real release is the first end-to-end test of `docker login` and the push with
   `GITHUB_TOKEN`.
 - The static app bundles npm dependencies of the playground; their licence notices are not
@@ -71,7 +77,20 @@ Jakub Kostrzewa), so both notices must travel with it.
 
 ## Sources
 
-- GitHub docs on GHCR package visibility and linking a package to a repository with
-  `org.opencontainers.image.source`: not checked (no network tool in this run); stated from
-  memory.
-- semver.org 2.0.0: not checked on the day; the scheme used is plain `MAJOR.MINOR.PATCH`.
+- Working with the Container registry (GitHub Docs),
+  https://docs.github.com/en/packages/working-with-a-github-packages-registry/working-with-the-container-registry,
+  checked 2026-10-15: the default visibility of a first-published package is private;
+  `GITHUB_TOKEN` publishes packages associated with the workflow repository; the label
+  `org.opencontainers.image.source` connects a package to a repository.
+- Configuring a package's access control and visibility (GitHub Docs),
+  https://docs.github.com/en/packages/learn-github-packages/configuring-a-packages-access-control-and-visibility,
+  checked 2026-10-15: a package linked to a repository inherits that repository's access
+  permissions (not its visibility) by default.
+- Connecting a repository to a package (GitHub Docs),
+  https://docs.github.com/en/packages/learn-github-packages/connecting-a-repository-to-a-package,
+  checked 2026-10-15: `LABEL org.opencontainers.image.source=https://github.com/OWNER/REPO`
+  connects the image to the repository.
+- Semantic Versioning 2.0.0, https://semver.org/spec/v2.0.0.html, checked 2026-10-15: a normal
+  version is `X.Y.Z` of non-negative integers without leading zeros; a pre-release suffix is
+  optional. The scheme here is plain `MAJOR.MINOR.PATCH`, which the tag pattern in
+  `tools/editor_release.py` enforces.
