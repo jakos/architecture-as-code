@@ -1,4 +1,5 @@
 import json
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -56,6 +57,9 @@ def app(tmp_path):
     (path / "index.html").write_text(INDEX)
     (path / "assets" / "app.js").write_text("console.log('hi')")
     (path / "assets" / "app.css").write_text("body{}")
+    (path / "LICENSE-LikeC4.txt").write_text("LikeC4 licence")
+    (path / "LICENSE.txt").write_text("our licence")
+    (path / "THIRD-PARTY-NOTICES.txt").write_text("Package: react@19.0.0\n")
     return path
 
 
@@ -180,6 +184,19 @@ def test_check_bundle_rejects_an_asset_url_outside_the_base(app, url):
         check_bundle(app, BASE)
 
 
+@pytest.mark.parametrize("name", ["LICENSE-LikeC4.txt", "LICENSE.txt", "THIRD-PARTY-NOTICES.txt"])
+def test_check_bundle_rejects_a_missing_licence_file(app, name):
+    (app / name).unlink()
+    with pytest.raises(ViewerError, match=re.escape(name)):
+        check_bundle(app, BASE)
+
+
+def test_check_bundle_rejects_empty_third_party_notices(app):
+    (app / "THIRD-PARTY-NOTICES.txt").write_text("")
+    with pytest.raises(ViewerError, match=r"THIRD-PARTY-NOTICES.txt"):
+        check_bundle(app, BASE)
+
+
 def test_check_bundle_rejects_a_python_file(app):
     (app / "server.py").write_text("print('server')")
     with pytest.raises(ViewerError, match=r"Python file: server\.py"):
@@ -215,6 +232,8 @@ class FakeEngine:
             dest = Path(cmd[3])
             (dest / "index.html").write_text(INDEX)
             (dest / "app.js").write_text("fetch('/api/submit')" if self.with_api else "ok")
+            for name in ("LICENSE-LikeC4.txt", "LICENSE.txt", "THIRD-PARTY-NOTICES.txt"):
+                (dest / name).write_text("text")
             return subprocess.CompletedProcess(cmd, 0)
         return subprocess.CompletedProcess(cmd, 0)
 

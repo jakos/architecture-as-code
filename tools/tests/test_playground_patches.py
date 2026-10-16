@@ -113,3 +113,9 @@ def test_assign_sends_demo_mode_files_to_the_patch_that_owns_their_side():
     groups = playground_patches.assign([f"{app}src/aac/mode.ts", f"{app}src/router.tsx"])
     assert groups["0002-server-workspace.patch"] == [f"{app}src/aac/mode.ts"]
     assert groups["0003-editor-ui.patch"] == [f"{app}src/router.tsx"]
+
+
+def test_assign_sends_vite_config_to_0004():
+    app = playground_patches.APP
+    groups = playground_patches.assign([f"{app}vite.config.ts"])
+    assert groups["0004-third-party-notices.patch"] == [f"{app}vite.config.ts"]

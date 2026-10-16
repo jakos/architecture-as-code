@@ -46,7 +46,11 @@ Jakub Kostrzewa), so both notices must travel with it.
   separate repository later.
 - **Licences.** The image carries LikeC4's licence (`LICENSE-LikeC4.txt`) and this repo's
   (`LICENSE.txt`), both served next to the app and linked from About; the Pages demo carries
-  both too. LikeC4's MIT notice and copyright are kept.
+  both too. LikeC4's MIT notice and copyright are kept. Every build also generates
+  `THIRD-PARTY-NOTICES.txt` (the npm packages in the browser bundle, with licence texts; linked
+  from About; the demo has its own) and, in the image, `THIRD-PARTY-NOTICES-likec4-cli.txt` (the
+  npm tree of the installed `likec4` CLI), by `tools/third_party_notices.py` from what is bundled
+  or installed.
 - **Owner-only steps.** Creating and pushing the release tag, the first push to GHCR, and the
   package visibility are done by the owner, not by the workflow or an agent.
 
@@ -66,9 +70,11 @@ Jakub Kostrzewa), so both notices must travel with it.
   connected to the repository. Checked 2026-10-15, no correction needed.
 - The first real release is the first end-to-end test of `docker login` and the push with
   `GITHUB_TOKEN`.
-- The static app bundles npm dependencies of the playground; their licence notices are not
-  collected into the image (LikeC4's own image has the same situation). Worth a follow-up before
-  wider distribution.
+- Licence notices are collected for the npm packages in the browser bundle and for the installed
+  `likec4` CLI tree. Not collected: the base image's own notices (Node.js, Debian packages,
+  Python), code that the `likec4` package bundles inside its own files, and any SBOM or licence
+  policy check. A bundled package with neither a declared licence nor a licence file fails the
+  build.
 - Not checked: LikeC4's trademark or naming policy, and name collisions of `likec4-model-editor`
   on GitHub or GHCR.
 - The image is a single-user, single-model server with HTTP Basic auth and defaults to

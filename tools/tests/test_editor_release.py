@@ -179,6 +179,7 @@ def test_patches_name_the_product_and_credit_likec4():
         "LICENSE-LikeC4.txt",
         "likec4.dev",
         "LICENSE.txt",
+        "THIRD-PARTY-NOTICES.txt",
     ):
         assert text in about, text
 

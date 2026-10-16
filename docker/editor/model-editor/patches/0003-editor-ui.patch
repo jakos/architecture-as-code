@@ -572,10 +572,10 @@ index 0000000..7d93dc3
 +}
 diff --git a/apps/playground/src/aac/AboutContent.tsx b/apps/playground/src/aac/AboutContent.tsx
 new file mode 100644
-index 0000000..7d0a833
+index 0000000..a43b3a8
 --- /dev/null
 +++ b/apps/playground/src/aac/AboutContent.tsx
-@@ -0,0 +1,30 @@
+@@ -0,0 +1,35 @@
 +import { Anchor, Stack, Text } from '@mantine/core'
 +import { DEMO } from './mode'
 +
@@ -602,6 +602,11 @@ index 0000000..7d0a833
 +      </Text>
 +      <Text fz="sm">
 +        <Anchor href={`${import.meta.env.BASE_URL}LICENSE-LikeC4.txt`} target="_blank">LikeC4 license text</Anchor>
++      </Text>
++      <Text fz="sm">
++        <Anchor href={`${import.meta.env.BASE_URL}THIRD-PARTY-NOTICES.txt`} target="_blank">
++          Third-party licence notices
++        </Anchor>
 +      </Text>
 +    </Stack>
 +  )

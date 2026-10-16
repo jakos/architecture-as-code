@@ -25,6 +25,7 @@ APP = "apps/playground/"
 # 0002 holds the whole state machine file and 0003 the whole route file, so that every patch
 # is a self-consistent step (each compiles on top of the one before). 0003 also holds the few
 # lines in LanguageClientSync.tsx that hand the Locate request to src/aac/.
+# 0004 holds the Vite plugin that records the bundled modules for THIRD-PARTY-NOTICES.txt.
 # Demo mode (a Vite build mode, see src/aac/mode.ts) lives in the same patches: its data side
 # (mode.ts, the static workspace loader, no saving) in 0002, its UI side (header, route loader,
 # hash history in router.tsx) in 0003. mode.ts is listed before the `src/aac/` prefix of 0003
@@ -57,6 +58,12 @@ PATCH_PATHS: list[tuple[str, list[str]]] = [
             f"{APP}src/routes/w.$workspaceId/route.tsx",
             f"{APP}src/monaco/LanguageClientSync.tsx",
             f"{APP}src/aac/",
+        ],
+    ),
+    (
+        "0004-third-party-notices.patch",
+        [
+            f"{APP}vite.config.ts",
         ],
     ),
 ]

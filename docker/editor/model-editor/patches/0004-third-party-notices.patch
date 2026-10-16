@@ -1,0 +1,66 @@
+diff --git a/apps/playground/vite.config.ts b/apps/playground/vite.config.ts
+index 2a2aa5f..9ac0285 100644
+--- a/apps/playground/vite.config.ts
++++ b/apps/playground/vite.config.ts
+@@ -3,10 +3,11 @@ import pandaCss from '@pandacss/dev/postcss'
+ import { TanStackRouterVite } from '@tanstack/router-vite-plugin'
+ import react from '@vitejs/plugin-react'
+ import { resolve as resolveImportMeta } from 'import-meta-resolve'
+-import { readFile } from 'node:fs/promises'
++import { randomUUID } from 'node:crypto'
++import { mkdir, readFile, writeFile } from 'node:fs/promises'
+ import { resolve } from 'node:path'
+ import url from 'url'
+-import { type AliasOptions, defineConfig } from 'vite'
++import { type AliasOptions, defineConfig, type Plugin } from 'vite'
+ 
+ const alias = {
+   '@tabler/icons-react': '@tabler/icons-react/dist/esm/icons/index.mjs',
+@@ -20,6 +21,31 @@ const alias = {
+   // '@likec4/language-server': path.resolve(__dirname, '../../packages/language-server/src'),
+ } satisfies AliasOptions
+ 
++// Records which source files went into the browser bundles (the app and its web workers), for
++// the generated THIRD-PARTY-NOTICES.txt (tools/third_party_notices.py). One JSON list of module
++// ids per bundle goes to dist/bundled-modules/. The Cloudflare Worker environment is not shipped.
++const bundledModules = (): Plugin => ({
++  name: 'aac-bundled-modules',
++  apply: 'build',
++  async generateBundle(_options, bundle) {
++    if (this.environment?.name === 'playground') return
++    const ids = new Set<string>()
++    for (const item of Object.values(bundle)) {
++      if (item.type === 'chunk') {
++        for (const [id, info] of Object.entries(item.modules)) {
++          if ((info.renderedLength ?? 1) > 0) ids.add(id)
++        }
++      } else {
++        for (const name of item.originalFileNames ?? []) ids.add(resolve(name))
++      }
++    }
++    const dir = url.fileURLToPath(new URL('./dist/bundled-modules', import.meta.url))
++    await mkdir(dir, { recursive: true })
++    const file = `${this.environment?.name ?? 'build'}-${randomUUID()}.json`
++    await writeFile(resolve(dir, file), JSON.stringify([...ids].sort()))
++  },
++})
++
+ export default defineConfig(({ command: _command }) => ({
+   resolve: {
+     alias,
+@@ -34,6 +60,7 @@ export default defineConfig(({ command: _command }) => ({
+   },
+   worker: {
+     format: 'es',
++    plugins: () => [bundledModules()],
+   },
+   environments: {
+     client: {
+@@ -126,6 +153,7 @@ export default defineConfig(({ command: _command }) => ({
+   plugins: [
+     TanStackRouterVite(),
+     react(),
++    bundledModules(),
+     cloudflare({
+       persistState: true,
+     }),
