@@ -20,7 +20,7 @@
 # check and the patches are not repeated. The result is a static app without server code; the
 # model comes from a workspace.json that tools/editor_demo.py adds next to index.html.
 # Runtime stage (last, so a plain build gives the image): Node (for the likec4 CLI that
-# validates and formats), Python and git (for the server and submit), and the built static app. No password or token is baked in.
+# validates and formats), Python and git (for the server and submit) with CA certificates (so git can clone and push over HTTPS), and the built static app. No password or token is baked in.
 #
 # Based on LikeC4 (https://likec4.dev), MIT licence, Copyright (c) 2023-2026 Denis Davydkov.
 # The licence text is copied into the image (see the About entry in the editor).
@@ -92,7 +92,7 @@ COPY --from=demo-build /demo /demo
 FROM docker.io/library/node:22.22.3-trixie-slim
 # apt packages are not version-pinned: they come from the Debian trixie archive at build time.
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends python3 git \
+    && apt-get install -y --no-install-recommends git ca-certificates python3 \
     && rm -rf /var/lib/apt/lists/* \
     && npm install -g likec4@1.59.4 \
     && usermod -l coder -d /home/coder -m node \
