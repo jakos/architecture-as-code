@@ -11,6 +11,8 @@
 #   (package settings on GitHub), not done here.
 # - Pull requests that touch the image only build it and check it; they do not log in or push.
 #   The build takes about 11 minutes.
+# - Both jobs check that git can reach GitHub over HTTPS inside the image (`git ls-remote`,
+#   anonymous), because 0.1.0 shipped without CA certificates.
 name: editor-image
 
 on:
@@ -36,6 +38,7 @@ permissions:
 env:
   CONTAINERFILE: docker/editor/model-editor/Containerfile
   STATIC: /usr/local/share/model-editor
+  HTTPS_CHECK_URL: https://github.com/jakos/architecture-as-code.git
 
 jobs:
   build:
@@ -57,6 +60,8 @@ jobs:
         run: >
           docker run --rm --entrypoint sh editor-image-check -c
           "test -f $STATIC/LICENSE-LikeC4.txt && test -f $STATIC/LICENSE.txt && test -s $STATIC/THIRD-PARTY-NOTICES.txt && test -s $STATIC/THIRD-PARTY-NOTICES-likec4-cli.txt && grep -q '^Package: react@' $STATIC/THIRD-PARTY-NOTICES.txt && grep -q '<title>LikeC4 Model Editor</title>' $STATIC/index.html"
+      - name: Check git over HTTPS
+        run: docker run --rm --entrypoint git editor-image-check ls-remote "$HTTPS_CHECK_URL" HEAD
 
   release:
     if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/likec4-model-editor-v')
@@ -119,6 +124,10 @@ jobs:
         run: >
           docker run --rm --entrypoint sh "$REF" -c
           "test -f $STATIC/LICENSE-LikeC4.txt && test -f $STATIC/LICENSE.txt && test -s $STATIC/THIRD-PARTY-NOTICES.txt && test -s $STATIC/THIRD-PARTY-NOTICES-likec4-cli.txt && grep -q '^Package: react@' $STATIC/THIRD-PARTY-NOTICES.txt && grep -q '<title>LikeC4 Model Editor</title>' $STATIC/index.html"
+      - name: Check git over HTTPS
+        env:
+          REF: ${{ steps.release.outputs.ref }}
+        run: docker run --rm --entrypoint git "$REF" ls-remote "$HTTPS_CHECK_URL" HEAD
       - name: Publish the tags
         env:
           TAGS: ${{ steps.release.outputs.tags }}
