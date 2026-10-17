@@ -74,8 +74,9 @@ stays until a follow-up removes it.
 The image is released as LikeC4 Model Editor, `ghcr.io/jakos/likec4-model-editor`, with its own
 version from a release tag `likec4-model-editor-vX.Y.Z`
 ([ADR 0012](decisions/0012-release-the-editor-image-as-likec4-model-editor.md),
-`.github/workflows/editor-image.yml`). It is not pushed yet: the owner releases it by pushing the
-first tag.
+`.github/workflows/editor-image.yml`). The current release is `0.1.1`; pull it with
+`ghcr.io/jakos/likec4-model-editor:0.1`. How to run it is in
+`docker/editor/model-editor/README.md` (section "Release").
 
 "No push to `main`" is enforced by the script and, later, by branch protection.
 
