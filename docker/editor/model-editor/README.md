@@ -78,7 +78,8 @@ LikeC4 version ([ADR 0012](../../../docs/decisions/0012-release-the-editor-image
 - Owner steps, never done by the workflow or a task: create and push the release tag; make the
   package public (a package created by a workflow push starts private; the label
   `org.opencontainers.image.source` links it to this repo); the first release is the first time
-  `docker login` and the push with the workflow's `GITHUB_TOKEN` run for real.
+  `docker login` and the push with the workflow's `GITHUB_TOKEN` run for real (the first release,
+  `0.1.0`, has been made; the current release is `0.1.1`).
 - Labels: `org.opencontainers.image.title`, `.description` (the tagline and the notice),
   `.source`, `.licenses` (`MIT`), `.version` (the image version; `dev` for a local build) and
   `io.github.jakos.architecture-as-code.likec4-version` (the LikeC4 version the image is built
@@ -90,21 +91,31 @@ internet as it is; `MODEL_PATH` defaults to `examples/shop`, set it to the model
 your repository):
 
 ```
-podman run --rm -p 8097:8080 \
+podman run --rm -p 127.0.0.1:8097:8080 \
   -e REPO_URL=<remote of the model repo> -e MODEL_PATH=<model directory in the repo> \
   -e PASSWORD=<password> -e MODEL_USER=<lowercase user id, e.g. jkostrzewa> -e MODEL_SLUG=<short topic> \
   ghcr.io/jakos/likec4-model-editor:0.1
 ```
 
+`127.0.0.1:` keeps the editor on the local machine. The image needs no login to pull (the
+package is public). The container handles no credentials: Submit pushes the `model/*` branch to
+`REPO_URL`, so with a GitHub https URL the clone works for a public repository but Submit cannot
+push without credentials. For now, use a remote the container can push to (for example a bare
+repository mounted into the container). GitHub sign-in is planned (`editor-hosting-and-auth`).
+
 `MODEL_USER` must match `^[a-z0-9][a-z0-9._-]*$` (lowercase letters, digits, `.`, `_`, `-`); it
 becomes part of the branch name. The server listens on port 8080 in the container. The module docstring of
 `docker/editor/entrypoint.py` lists all environment variables.
 
-LikeC4 version per release (filled in when a release is made; none yet):
+LikeC4 version per release:
 
 | Release | LikeC4 |
 | --- | --- |
-| (none yet) | v1.59.4 is what `main` builds on |
+| 0.1.1 | v1.59.4 |
+| 0.1.0 | v1.59.4 |
+
+`0.1.0` cannot clone over HTTPS because the image has no CA certificates. Use `0.1.1`. The tag
+`0.1` points to `0.1.1`.
 
 ## What the patches do
 
