@@ -1,14 +1,15 @@
 diff --git a/apps/playground/src/aac/AacEditorLayout.tsx b/apps/playground/src/aac/AacEditorLayout.tsx
 new file mode 100644
-index 0000000..f50707b
+index 0000000..8d3a083
 --- /dev/null
 +++ b/apps/playground/src/aac/AacEditorLayout.tsx
-@@ -0,0 +1,324 @@
+@@ -0,0 +1,359 @@
 +import { usePlayground, usePlaygroundContext } from '$hooks/usePlayground'
 +import {
 +  ActionIcon,
 +  Badge,
 +  Box,
++  Drawer,
 +  Group,
 +  HoverCard,
 +  NavLink,
@@ -32,6 +33,7 @@ index 0000000..f50707b
 +import { type PropsWithChildren, useEffect, useMemo, useRef } from 'react'
 +import { viewForFile } from './followFile'
 +import { locate } from './language'
++import { $filesOpen, setFilesOpen, setPane, useMobileLayout } from './mobile'
 +import { $problems, applyMarkers, dropStaleProblems, revealInEditor } from './problems'
 +import { type FileSaveState, type SaveStates, useSaveStates } from './saving'
 +import { type Problem } from './server'
@@ -102,12 +104,15 @@ index 0000000..f50707b
 +  activeFilename,
 +  saveStates,
 +  counts,
++  touch,
 +  onOpen,
 +}: {
 +  nodes: TreeNode[]
 +  activeFilename: string
 +  saveStates: SaveStates
 +  counts: Record<string, number>
++  /** Phone layout: larger rows for fingers. */
++  touch: boolean
 +  onOpen: (path: string) => void
 +}) {
 +  return (
@@ -118,8 +123,9 @@ index 0000000..f50707b
 +            <NavLink
 +              key={node.path}
 +              label={node.name}
-+              fz="xs"
++              fz={touch ? 'sm' : 'xs'}
 +              py={2}
++              {...(touch ? { mih: 36 } : {})}
 +              defaultOpened
 +              childrenOffset={12}
 +              rightSection={<IconChevronRight size={12} />}>
@@ -128,6 +134,7 @@ index 0000000..f50707b
 +                activeFilename={activeFilename}
 +                saveStates={saveStates}
 +                counts={counts}
++                touch={touch}
 +                onOpen={onOpen} />
 +            </NavLink>
 +          )
@@ -139,8 +146,9 @@ index 0000000..f50707b
 +            key={node.path}
 +            label={node.name}
 +            title={node.path}
-+            fz="xs"
++            fz={touch ? 'sm' : 'xs'}
 +            py={2}
++            {...(touch ? { mih: 36 } : {})}
 +            active={node.path === activeFilename}
 +            leftSection={<IconFile size={14} />}
 +            rightSection={
@@ -159,6 +167,7 @@ index 0000000..f50707b
 +function FileTree() {
 +  const playground = usePlayground()
 +  const router = useRouter()
++  const phone = useMobileLayout()
 +  const latestClick = useRef(0)
 +  const files = usePlaygroundContext(s => s.files)
 +  const activeFilename = usePlaygroundContext(s => s.activeFilename)
@@ -179,6 +188,7 @@ index 0000000..f50707b
 +        activeFilename={activeFilename}
 +        saveStates={saveStates}
 +        counts={counts}
++        touch={phone}
 +        onOpen={path => {
 +          revealInEditor(path, null)
 +          playground.changeActiveFile(path)
@@ -197,6 +207,11 @@ index 0000000..f50707b
 +              playground.changeActiveView(viewId)
 +            })
 +            .catch(error => console.error('could not follow file to its view', error))
++          // Phone layout: the tree is a drawer; after a pick, close it and show the file.
++          if (phone) {
++            setFilesOpen(false)
++            setPane('code')
++          }
 +        }} />
 +    </ScrollArea>
 +  )
@@ -315,11 +330,31 @@ index 0000000..f50707b
 +
 +/** File tree on the left, the editor (children) with its file bar and problems list on the right. */
 +export function AacEditorLayout({ children }: PropsWithChildren) {
++  const phone = useMobileLayout()
++  const filesOpen = useStore($filesOpen)
 +  return (
 +    <Group h="100%" gap={0} wrap="nowrap" align="stretch">
-+      <Box w={230} style={{ flexShrink: 0, borderRight: '1px solid var(--mantine-color-default-border)' }}>
-+        <FileTree />
-+      </Box>
++      {phone
++        ? (
++          <Drawer
++            opened={filesOpen}
++            onClose={() => setFilesOpen(false)}
++            position="left"
++            size="min(85vw, 320px)"
++            title="Files"
++            padding={0}
++            keepMounted
++            data-testid="file-drawer">
++            <Box h="calc(100dvh - 80px)">
++              <FileTree />
++            </Box>
++          </Drawer>
++        )
++        : (
++          <Box w={230} style={{ flexShrink: 0, borderRight: '1px solid var(--mantine-color-default-border)' }}>
++            <FileTree />
++          </Box>
++        )}
 +      <Stack flex={1} gap={0} style={{ minWidth: 0 }}>
 +        <OpenFileBar />
 +        <Stack flex={1} gap={0} style={{ minHeight: 0 }}>{children}</Stack>
@@ -330,28 +365,45 @@ index 0000000..f50707b
 +}
 diff --git a/apps/playground/src/aac/AacHeader.tsx b/apps/playground/src/aac/AacHeader.tsx
 new file mode 100644
-index 0000000..7d93dc3
+index 0000000..383e60d
 --- /dev/null
 +++ b/apps/playground/src/aac/AacHeader.tsx
-@@ -0,0 +1,236 @@
+@@ -0,0 +1,399 @@
 +import { usePlayground, usePlaygroundContext } from '$hooks/usePlayground'
-+import { ActionIcon, Badge, Button, Group, Text, Tooltip } from '@mantine/core'
++import {
++  ActionIcon,
++  Badge,
++  Box,
++  Button,
++  Group,
++  Menu,
++  SegmentedControl,
++  Text,
++  Tooltip,
++  useComputedColorScheme,
++  useMantineColorScheme,
++} from '@mantine/core'
 +import { modals } from '@mantine/modals'
 +import { useStore } from '@nanostores/react'
 +import {
 +  IconAlertCircle,
 +  IconBrandGithub,
 +  IconCheck,
++  IconDots,
++  IconFiles,
 +  IconGitBranch,
 +  IconInfoCircle,
 +  IconLoader2,
++  IconMoonStars,
 +  IconShieldCheck,
++  IconSun,
 +  IconUpload,
 +  IconWand,
 +} from '@tabler/icons-react'
 +import { useEffect, useState } from 'react'
 +import { ColorSchemeToggle } from '../components/ColorSchemeToggle'
 +import { AboutContent } from './AboutContent'
++import { $pane, setFilesOpen, setPane, useMobileLayout } from './mobile'
 +import { DEMO } from './mode'
 +import { $problems, runValidate } from './problems'
 +import { dirtyFiles, saveAll, useSaveStates } from './saving'
@@ -374,7 +426,8 @@ index 0000000..7d93dc3
 +  error: 'Not saved - press Ctrl+S to retry',
 +} as const
 +
-+function SaveIndicator() {
++/** `compact`: the icon alone (phone header); the text moves to the tooltip and the aria-label. */
++function SaveIndicator({ compact = false }: { compact?: boolean }) {
 +  const playground = usePlayground()
 +  const files = usePlaygroundContext(s => s.files)
 +  const { overall, errors } = useSaveStates(files)
@@ -391,10 +444,11 @@ index 0000000..7d93dc3
 +        wrap="nowrap"
 +        data-testid="save-indicator"
 +        data-save-state={overall}
++        aria-label={compact ? firstError ?? overallText[overall] : undefined}
 +        style={{ cursor: overall === 'error' ? 'pointer' : 'default' }}
 +        onClick={() => overall === 'error' && void saveAll(playground.getContext().files)}>
 +        {icon}
-+        <Text fz="xs" c={overall === 'error' ? 'red' : 'dimmed'}>{overallText[overall]}</Text>
++        {!compact && <Text fz="xs" c={overall === 'error' ? 'red' : 'dimmed'}>{overallText[overall]}</Text>}
 +      </Group>
 +    </Tooltip>
 +  )
@@ -429,9 +483,134 @@ index 0000000..7d93dc3
 +  }, [playground])
 +}
 +
++const demoText = 'Demo – changes are not saved'
++
++/** The header of the phone layout: one row that fits 360 px; everything else is in the More menu. */
++function PhoneHeader(props: {
++  pane: 'diagram' | 'code'
++  branch: string | null
++  message: string | null
++  running: boolean
++  formatting: boolean
++  onValidate: () => void
++  onFormat: () => void
++  onSubmit: () => void
++  onAbout: () => void
++}) {
++  const { setColorScheme } = useMantineColorScheme()
++  const scheme = useComputedColorScheme('light', { getInitialValueInEffect: true })
++  return (
++    <Box style={{ position: 'relative', height: '100%' }}>
++      <Group h="100%" px="xs" gap="xs" justify="space-between" align="center" wrap="nowrap">
++        <Group gap="xs" align="center" wrap="nowrap">
++          <ActionIcon
++            variant="default"
++            size="lg"
++            aria-label="Files"
++            data-testid="files-button"
++            onClick={() => setFilesOpen(true)}>
++            <IconFiles size={18} stroke={1.5} />
++          </ActionIcon>
++          <SegmentedControl
++            size="xs"
++            value={props.pane}
++            onChange={value => setPane(value === 'code' ? 'code' : 'diagram')}
++            data={[{ label: 'Diagram', value: 'diagram' }, { label: 'Code', value: 'code' }]}
++            data-testid="pane-switch" />
++        </Group>
++        <Group gap="xs" align="center" wrap="nowrap">
++          {DEMO
++            ? (
++              <Badge variant="light" color="yellow" tt="none" title={demoText} data-testid="demo-label">
++                Demo
++              </Badge>
++            )
++            : <SaveIndicator compact />}
++          <Menu position="bottom-end" withinPortal>
++            <Menu.Target>
++              <ActionIcon variant="default" size="lg" aria-label="More" data-testid="more-menu">
++                <IconDots size={18} stroke={1.5} />
++              </ActionIcon>
++            </Menu.Target>
++            <Menu.Dropdown>
++              {DEMO
++                ? (
++                  <>
++                    <Menu.Label>{demoText}</Menu.Label>
++                    <Menu.Item
++                      component="a"
++                      href="https://github.com/jakos/architecture-as-code"
++                      target="_blank"
++                      rel="noopener"
++                      leftSection={<IconBrandGithub size={14} />}
++                      data-testid="repo-link">
++                      Source on GitHub
++                    </Menu.Item>
++                  </>
++                )
++                : (
++                  <>
++                    <Menu.Label data-testid="branch-indicator">
++                      <IconGitBranch size={12} style={{ verticalAlign: 'middle' }} /> {props.branch ?? '...'}
++                    </Menu.Label>
++                    <Menu.Item
++                      leftSection={<IconShieldCheck size={14} />}
++                      disabled={props.running}
++                      onClick={props.onValidate}>
++                      Validate
++                    </Menu.Item>
++                    <Menu.Item
++                      leftSection={<IconWand size={14} />}
++                      disabled={props.formatting}
++                      onClick={props.onFormat}>
++                      Format
++                    </Menu.Item>
++                    <Menu.Item leftSection={<IconUpload size={14} />} onClick={props.onSubmit}>
++                      Submit
++                    </Menu.Item>
++                  </>
++                )}
++              <Menu.Divider />
++              <Menu.Item
++                leftSection={scheme === 'light' ? <IconMoonStars size={14} /> : <IconSun size={14} />}
++                closeMenuOnClick={false}
++                onClick={() => setColorScheme(scheme === 'light' ? 'dark' : 'light')}>
++                {scheme === 'light' ? 'Dark mode' : 'Light mode'}
++              </Menu.Item>
++              <Menu.Item leftSection={<IconInfoCircle size={14} />} onClick={props.onAbout}>
++                About
++              </Menu.Item>
++            </Menu.Dropdown>
++          </Menu>
++        </Group>
++      </Group>
++      {props.message && (
++        <Text
++          fz="xs"
++          px="xs"
++          py={4}
++          data-testid="header-message"
++          style={{
++            position: 'absolute',
++            top: '100%',
++            left: 0,
++            right: 0,
++            zIndex: 10,
++            background: 'var(--mantine-color-body)',
++            borderBottom: '1px solid var(--mantine-color-default-border)',
++          }}>
++          {props.message}
++        </Text>
++      )}
++    </Box>
++  )
++}
++
 +export function AacHeader() {
 +  const playground = usePlayground()
 +  const branch = useBranch()
++  const phone = useMobileLayout()
++  const pane = useStore($pane)
 +  const problems = useStore($problems)
 +  const [busy, setBusy] = useState<null | 'format'>(null)
 +  const [message, setMessage] = useState<string | null>(null)
@@ -452,6 +631,8 @@ index 0000000..7d93dc3
 +    await runValidate(files)
 +    const state = $problems.get()
 +    setMessage(state.failure ? 'Validate failed' : state.items.length === 0 ? 'No problems found' : null)
++    // Phone layout: the problems list is in the Code pane.
++    if (phone && (state.failure || state.items.length > 0)) setPane('code')
 +  }
 +
 +  const format = async () => {
@@ -485,6 +666,7 @@ index 0000000..7d93dc3
 +    modals.open({
 +      title: 'Submit for review',
 +      size: 'lg',
++      fullScreen: phone,
 +      radius: 'xs',
 +      children: <SubmitForm getFiles={() => playground.getContext().files} onDone={() => modals.closeAll()} />,
 +    })
@@ -493,9 +675,25 @@ index 0000000..7d93dc3
 +    modals.open({
 +      title: 'About this editor',
 +      size: 'md',
++      fullScreen: phone,
 +      radius: 'xs',
 +      children: <AboutContent />,
 +    })
++
++  if (phone) {
++    return (
++      <PhoneHeader
++        pane={pane}
++        branch={branch}
++        message={message}
++        running={problems.running}
++        formatting={busy === 'format'}
++        onValidate={() => void validate()}
++        onFormat={() => void format()}
++        onSubmit={openSubmit}
++        onAbout={openAbout} />
++    )
++  }
 +
 +  return (
 +    <Group h="100%" px="md" justify="space-between" align="center" wrap="nowrap">
@@ -568,6 +766,50 @@ index 0000000..7d93dc3
 +        </ActionIcon>
 +      </Group>
 +    </Group>
++  )
++}
+diff --git a/apps/playground/src/aac/AacMobileLayout.tsx b/apps/playground/src/aac/AacMobileLayout.tsx
+new file mode 100644
+index 0000000..8207ed8
+--- /dev/null
++++ b/apps/playground/src/aac/AacMobileLayout.tsx
+@@ -0,0 +1,38 @@
++import { Box } from '@mantine/core'
++import { useStore } from '@nanostores/react'
++import { type ReactNode } from 'react'
++import * as styles from '../routes/styles.css'
++import { $pane, type Pane } from './mobile'
++
++function PaneBox({ id, active, children }: { id: Pane; active: boolean; children: ReactNode }) {
++  // Both panes stay mounted and keep their size: a switch must not reload Monaco, the language
++  // client or the diagram, so the typed text and the current view survive it.
++  return (
++    <Box
++      className={styles.panel}
++      data-testid={`pane-${id}`}
++      data-active={active ? 'true' : 'false'}
++      style={{
++        position: 'absolute',
++        top: 0,
++        right: 0,
++        bottom: 0,
++        left: 0,
++        visibility: active ? 'visible' : 'hidden',
++        pointerEvents: active ? 'auto' : 'none',
++      }}>
++      {children}
++    </Box>
++  )
++}
++
++/** One full-size pane at a time, Diagram or Code; the header switches between them. */
++export function AacMobileLayout({ code, diagram }: { code: ReactNode; diagram: ReactNode }) {
++  const pane = useStore($pane)
++  return (
++    <Box style={{ position: 'relative', height: '100%', width: '100%', overflow: 'hidden' }}>
++      <PaneBox id="diagram" active={pane === 'diagram'}>{diagram}</PaneBox>
++      <PaneBox id="code" active={pane === 'code'}>{code}</PaneBox>
++    </Box>
 +  )
 +}
 diff --git a/apps/playground/src/aac/AboutContent.tsx b/apps/playground/src/aac/AboutContent.tsx
@@ -916,6 +1158,41 @@ index 0000000..afb3e5f
 +export async function locate(params: Locate.Params): Promise<Location | null> {
 +  return current ? await current(params) : null
 +}
+diff --git a/apps/playground/src/aac/mobile.ts b/apps/playground/src/aac/mobile.ts
+new file mode 100644
+index 0000000..b9a45b0
+--- /dev/null
++++ b/apps/playground/src/aac/mobile.ts
+@@ -0,0 +1,29 @@
++import { useMediaQuery } from '@mantine/hooks'
++import { atom } from 'nanostores'
++
++/**
++ * The phone layout: portrait phones and narrow windows (the width rule of upstream's `isMobile`),
++ * and phones in landscape (short and touch). A desktop browser with a mouse wider than 768 px
++ * never matches.
++ */
++export const MOBILE_QUERY = '(max-width: 768px), (max-height: 500px) and (pointer: coarse)'
++
++export function useMobileLayout(): boolean {
++  return useMediaQuery(MOBILE_QUERY, false, { getInitialValueInEffect: false })
++}
++
++export type Pane = 'diagram' | 'code'
++
++/** The visible pane of the phone layout. Not stored: every load starts on the diagram. */
++export const $pane = atom<Pane>('diagram')
++
++export function setPane(pane: Pane) {
++  $pane.set(pane)
++}
++
++/** Whether the file drawer of the phone layout is open. */
++export const $filesOpen = atom(false)
++
++export function setFilesOpen(open: boolean) {
++  $filesOpen.set(open)
++}
 diff --git a/apps/playground/src/aac/problems.ts b/apps/playground/src/aac/problems.ts
 new file mode 100644
 index 0000000..890f9c7
@@ -1100,14 +1377,16 @@ index b966e46..1fb7b0f 100644
    },
  })
 diff --git a/apps/playground/src/routes/w.$workspaceId/route.tsx b/apps/playground/src/routes/w.$workspaceId/route.tsx
-index 82ca222..2a5ae04 100644
+index 82ca222..db7fec0 100644
 --- a/apps/playground/src/routes/w.$workspaceId/route.tsx
 +++ b/apps/playground/src/routes/w.$workspaceId/route.tsx
-@@ -1,15 +1,16 @@
+@@ -1,15 +1,18 @@
  import { MonacoEditor } from '$/monaco'
 -import { Header } from '$components/appshell/Header'
 +import { AacEditorLayout } from '$/aac/AacEditorLayout'
 +import { AacHeader } from '$/aac/AacHeader'
++import { AacMobileLayout } from '$/aac/AacMobileLayout'
++import { useMobileLayout } from '$/aac/mobile'
 +import { initSaved, recallActiveFile } from '$/aac/saving'
 +import { loadWorkspace } from '$/aac/server'
  import {
@@ -1124,7 +1403,7 @@ index 82ca222..2a5ae04 100644
  import { useMediaQuery } from '@mantine/hooks'
  import { createFileRoute, Outlet } from '@tanstack/react-router'
  import { useState } from 'react'
-@@ -18,30 +19,21 @@ import * as styles from '../styles.css'
+@@ -18,30 +21,21 @@ import * as styles from '../styles.css'
  
  export const Route = createFileRoute('/w/$workspaceId')({
    component: WorkspaceContextPage,
@@ -1164,7 +1443,15 @@ index 82ca222..2a5ae04 100644
    },
  })
  
-@@ -61,7 +53,7 @@ function WorkspaceContextPage() {
+@@ -49,6 +43,7 @@ function WorkspaceContextPage() {
+   // const { workspaceId } = Route.useParams()
+   const workspace = Route.useLoaderData()
+   const isMobile = useMediaQuery('(max-width: 768px)')
++  const phone = useMobileLayout() // aac: one pane at a time
+   const [layoutedModelApi, setLayoutedModelApi] = useState<LayoutedModelApi | null>(null)
+ 
+   const { defaultLayout, onLayoutChange } = useDefaultLayout({
+@@ -61,9 +56,21 @@ function WorkspaceContextPage() {
        <DrawioContextMenuProvider layoutedModelApi={layoutedModelApi}>
          <AppShell header={{ height: 50 }}>
            <AppShellHeader>
@@ -1172,8 +1459,22 @@ index 82ca222..2a5ae04 100644
 +            <AacHeader />
            </AppShellHeader>
            <AppShellMain h={'100dvh'}>
++            {/* aac: the phone layout replaces the resizable split (not indented, to keep the diff small) */}
++            {phone
++              ? (
++                <AacMobileLayout
++                  code={
++                    <AacEditorLayout>
++                      <EditorPanelWithDrawioMenu setLayoutedModelApi={setLayoutedModelApi} />
++                    </AacEditorLayout>
++                  }
++                  diagram={<Outlet />} />
++              )
++              : (
              <Group
-@@ -75,10 +67,9 @@ function WorkspaceContextPage() {
+               className={css({ h: '100%' })}
+               orientation={isMobile ? 'vertical' : 'horizontal'}
+@@ -75,10 +82,9 @@ function WorkspaceContextPage() {
                  collapsible={true}
                  minSize={'10'}
                  defaultSize={'60'}>
@@ -1186,3 +1487,11 @@ index 82ca222..2a5ae04 100644
                </Panel>
                <Separator
                  className={styles.resize}
+@@ -90,6 +96,7 @@ function WorkspaceContextPage() {
+                 <Outlet />
+               </Panel>
+             </Group>
++              )}
+           </AppShellMain>
+         </AppShell>
+       </DrawioContextMenuProvider>
