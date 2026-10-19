@@ -108,6 +108,14 @@ def test_assign_sends_language_client_sync_to_0003_and_only_that_monaco_file():
         playground_patches.assign([f"{app}src/monaco/MonacoEditor.tsx"])
 
 
+def test_assign_sends_view_route_to_0003():
+    app = playground_patches.APP
+    groups = playground_patches.assign([f"{app}src/routes/w.$workspaceId/$viewId.tsx"])
+    assert groups["0003-editor-ui.patch"] == [f"{app}src/routes/w.$workspaceId/$viewId.tsx"]
+    with pytest.raises(SystemExit, match="belongs to no patch"):
+        playground_patches.assign([f"{app}src/routes/w.$workspaceId/other.tsx"])
+
+
 def test_assign_sends_demo_mode_files_to_the_patch_that_owns_their_side():
     app = playground_patches.APP
     groups = playground_patches.assign([f"{app}src/aac/mode.ts", f"{app}src/router.tsx"])
