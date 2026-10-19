@@ -1,9 +1,9 @@
 diff --git a/apps/playground/src/aac/AacEditorLayout.tsx b/apps/playground/src/aac/AacEditorLayout.tsx
 new file mode 100644
-index 0000000..8d3a083
+index 0000000..ae81b50
 --- /dev/null
 +++ b/apps/playground/src/aac/AacEditorLayout.tsx
-@@ -0,0 +1,359 @@
+@@ -0,0 +1,495 @@
 +import { usePlayground, usePlaygroundContext } from '$hooks/usePlayground'
 +import {
 +  ActionIcon,
@@ -27,10 +27,14 @@ index 0000000..8d3a083
 +  IconChevronRight,
 +  IconFile,
 +  IconInfoCircle,
++  IconLayoutSidebarLeftCollapse,
++  IconLayoutSidebarLeftExpand,
 +  IconX,
 +} from '@tabler/icons-react'
 +import { useRouter } from '@tanstack/react-router'
-+import { type PropsWithChildren, useEffect, useMemo, useRef } from 'react'
++import { type PropsWithChildren, useEffect, useMemo, useRef, useState } from 'react'
++import { Group as PanelGroup, Panel, Separator, usePanelRef } from 'react-resizable-panels'
++import * as styles from '../routes/styles.css'
 +import { viewForFile } from './followFile'
 +import { locate } from './language'
 +import { $filesOpen, setFilesOpen, setPane, useMobileLayout } from './mobile'
@@ -217,7 +221,10 @@ index 0000000..8d3a083
 +  )
 +}
 +
-+function OpenFileBar() {
++/** Desktop only: hides and shows the file tree panel. */
++type FilesToggle = { collapsed: boolean; toggle: () => void }
++
++function OpenFileBar({ filesToggle }: { filesToggle?: FilesToggle | undefined }) {
 +  const files = usePlaygroundContext(s => s.files)
 +  const activeFilename = usePlaygroundContext(s => s.activeFilename)
 +  const diagnosticErrors = usePlaygroundContext(s => s.diagnosticErrors)
@@ -225,7 +232,23 @@ index 0000000..8d3a083
 +  const state = saveStates.byFile[activeFilename] ?? 'saved'
 +  return (
 +    <Group h={30} px="xs" gap="xs" justify="space-between" wrap="nowrap" style={{ flexShrink: 0 }}>
-+      <Group gap={8} wrap="nowrap">
++      <Group gap={8} wrap="nowrap" style={{ minWidth: 0 }}>
++        {filesToggle && (
++          <Tooltip label={filesToggle.collapsed ? 'Show files' : 'Hide files'} withArrow>
++            <ActionIcon
++              size="sm"
++              variant="subtle"
++              color="gray"
++              data-testid="files-toggle"
++              aria-label={filesToggle.collapsed ? 'Show files' : 'Hide files'}
++              aria-expanded={!filesToggle.collapsed}
++              onClick={filesToggle.toggle}>
++              {filesToggle.collapsed
++                ? <IconLayoutSidebarLeftExpand size={16} />
++                : <IconLayoutSidebarLeftCollapse size={16} />}
++            </ActionIcon>
++          </Tooltip>
++        )}
 +        <Text fz="xs" fw={500} truncate>{activeFilename}</Text>
 +        <Badge size="xs" variant="light" tt="none" color={stateColor[state]} data-testid="file-save-state">
 +          {stateLabel[state]}
@@ -328,39 +351,152 @@ index 0000000..8d3a083
 +  )
 +}
 +
-+/** File tree on the left, the editor (children) with its file bar and problems list on the right. */
++/**
++ * File tree on the left, the editor (children) with its file bar and problems list on the right.
++ * Desktop: the tree is a resizable panel that can be hidden (width kept per tab).
++ */
++const TREE_WIDTH = 230
++const TREE_MIN = 160
++const WIDTH_KEY = 'aac-file-tree:width'
++const HIDDEN_KEY = 'aac-file-tree:hidden'
++
++/** Tree width (px) and hidden flag of this tab. Kept here in pixels, not as a percentage layout. */
++function readTreeState() {
++  try {
++    const width = Number(sessionStorage.getItem(WIDTH_KEY))
++    return {
++      width: Number.isFinite(width) && width >= TREE_MIN ? width : TREE_WIDTH,
++      hidden: sessionStorage.getItem(HIDDEN_KEY) === '1',
++    }
++  } catch {
++    return { width: TREE_WIDTH, hidden: false }
++  }
++}
++
++function saveTreeState(width: number, hidden: boolean) {
++  try {
++    sessionStorage.setItem(WIDTH_KEY, String(Math.round(width)))
++    sessionStorage.setItem(HIDDEN_KEY, hidden ? '1' : '0')
++  } catch {
++    // storage unavailable: the width just is not kept
++  }
++}
++
 +export function AacEditorLayout({ children }: PropsWithChildren) {
 +  const phone = useMobileLayout()
 +  const filesOpen = useStore($filesOpen)
-+  return (
-+    <Group h="100%" gap={0} wrap="nowrap" align="stretch">
-+      {phone
-+        ? (
-+          <Drawer
-+            opened={filesOpen}
-+            onClose={() => setFilesOpen(false)}
-+            position="left"
-+            size="min(85vw, 320px)"
-+            title="Files"
-+            padding={0}
-+            keepMounted
-+            data-testid="file-drawer">
-+            <Box h="calc(100dvh - 80px)">
-+              <FileTree />
-+            </Box>
-+          </Drawer>
-+        )
-+        : (
-+          <Box w={230} style={{ flexShrink: 0, borderRight: '1px solid var(--mantine-color-default-border)' }}>
++  const filesPanel = usePanelRef()
++  const initial = useRef(readTreeState())
++  // Last pixel width of the visible tree; used to bring it back after Hide.
++  const lastWidth = useRef(initial.current.width)
++  // Live hidden flag; read again each time the desktop group mounts (after a phone-size round trip).
++  const hidden = useRef(initial.current.hidden)
++  // True from pointer down / key down on the separator until the library reports the user's layout.
++  const interacting = useRef(false)
++  const [collapsed, setCollapsed] = useState(initial.current.hidden)
++  useEffect(() => {
++    if (!phone && hidden.current) filesPanel.current?.collapse()
++  }, [phone])
++  const toggle = () => {
++    const panel = filesPanel.current
++    if (!panel) return
++    if (panel.isCollapsed()) {
++      hidden.current = false
++      panel.expand()
++      panel.resize(lastWidth.current)
++      saveTreeState(lastWidth.current, false)
++    } else {
++      const px = panel.getSize().inPixels
++      if (px >= TREE_MIN) lastWidth.current = px
++      hidden.current = true
++      panel.collapse()
++      saveTreeState(lastWidth.current, true)
++    }
++  }
++  const parts = (
++    <>
++      <OpenFileBar
++        filesToggle={phone ? undefined : { collapsed, toggle }} />
++      <Stack flex={1} gap={0} style={{ minHeight: 0 }}>{children}</Stack>
++      <ProblemsPanel />
++    </>
++  )
++  if (phone) {
++    return (
++      <Group h="100%" gap={0} wrap="nowrap" align="stretch">
++        <Drawer
++          opened={filesOpen}
++          onClose={() => setFilesOpen(false)}
++          position="left"
++          size="min(85vw, 320px)"
++          title="Files"
++          padding={0}
++          keepMounted
++          data-testid="file-drawer">
++          <Box h="calc(100dvh - 80px)">
 +            <FileTree />
 +          </Box>
-+        )}
-+      <Stack flex={1} gap={0} style={{ minWidth: 0 }}>
-+        <OpenFileBar />
-+        <Stack flex={1} gap={0} style={{ minHeight: 0 }}>{children}</Stack>
-+        <ProblemsPanel />
-+      </Stack>
-+    </Group>
++        </Drawer>
++        <Stack flex={1} gap={0} style={{ minWidth: 0 }}>{parts}</Stack>
++      </Group>
++    )
++  }
++  return (
++    <PanelGroup
++      orientation="horizontal"
++      onLayoutChanged={(_, meta) => {
++        const panel = filesPanel.current
++        if (!panel) return
++        const px = panel.getSize().inPixels
++        if (!meta.isUserInteraction) return
++        // A drag or key press on the separator is saved.
++        interacting.current = false
++        hidden.current = px === 0
++        if (px >= TREE_MIN) lastWidth.current = px
++        saveTreeState(lastWidth.current, hidden.current)
++      }}>
++      <Panel
++        id="file-tree-panel"
++        panelRef={filesPanel}
++        collapsible
++        collapsedSize={0}
++        defaultSize={lastWidth.current}
++        minSize={TREE_MIN}
++        maxSize="50%"
++        groupResizeBehavior="preserve-pixel-size"
++        onResize={size => {
++          const px = size.inPixels
++          setCollapsed(px === 0)
++          // The library keeps the first measurement as a percentage, so the pixel width can come out wrong
++          // (the group is measured again, wider). This runs on pixel changes, from the panel's ResizeObserver.
++          // Not while the user drags or presses keys, and never for a collapsed or hidden tree.
++          const panel = filesPanel.current
++          if (!panel || interacting.current || hidden.current || px === 0) return
++          if (Math.abs(px - lastWidth.current) > 1) panel.resize(lastWidth.current)
++        }}>
++        <Box h="100%">
++          <FileTree />
++        </Box>
++      </Panel>
++      <Separator
++        id="file-tree-separator"
++        className={styles.resize}
++        style={{ width: 5 }}
++        onPointerDown={() => {
++          interacting.current = true
++          // Also clear after the pointer is released, in case the drag changes nothing.
++          window.addEventListener('pointerup', () => setTimeout(() => (interacting.current = false), 300), {
++            once: true,
++          })
++        }}
++        onKeyDown={() => {
++          interacting.current = true
++          setTimeout(() => (interacting.current = false), 300)
++        }} />
++      <Panel id="file-code-panel" minSize={200}>
++        <Stack h="100%" gap={0} style={{ minWidth: 0 }}>{parts}</Stack>
++      </Panel>
++    </PanelGroup>
 +  )
 +}
 diff --git a/apps/playground/src/aac/AacHeader.tsx b/apps/playground/src/aac/AacHeader.tsx
@@ -1376,6 +1512,20 @@ index b966e46..1fb7b0f 100644
 +    return <Navigate to="/w/$workspaceId/" params={{ workspaceId: 'model' }} />
    },
  })
+diff --git a/apps/playground/src/routes/w.$workspaceId/$viewId.tsx b/apps/playground/src/routes/w.$workspaceId/$viewId.tsx
+index 82a659e..8069b7a 100644
+--- a/apps/playground/src/routes/w.$workspaceId/$viewId.tsx
++++ b/apps/playground/src/routes/w.$workspaceId/$viewId.tsx
+@@ -113,6 +113,9 @@ function WorkspaceDiagramPage() {
+               reactFlowProps={{
+                 // Otherwise reactflow intercepts "Space" key
+                 panActivationKeyCode: null,
++                // aac: mouse wheel zooms (editor only)
++                zoomOnScroll: true,
++                panOnScroll: false,
+               }}
+               onCanvasContextMenu={onCanvasContextMenu}
+               onNavigateTo={(nextView, event) => {
 diff --git a/apps/playground/src/routes/w.$workspaceId/route.tsx b/apps/playground/src/routes/w.$workspaceId/route.tsx
 index 82ca222..db7fec0 100644
 --- a/apps/playground/src/routes/w.$workspaceId/route.tsx

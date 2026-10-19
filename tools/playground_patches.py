@@ -56,6 +56,7 @@ PATCH_PATHS: list[tuple[str, list[str]]] = [
             f"{APP}src/router.tsx",
             f"{APP}src/routes/index.tsx",
             f"{APP}src/routes/w.$workspaceId/route.tsx",
+            f"{APP}src/routes/w.$workspaceId/$viewId.tsx",
             f"{APP}src/monaco/LanguageClientSync.tsx",
             f"{APP}src/aac/",
         ],
