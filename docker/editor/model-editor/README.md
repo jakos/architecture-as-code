@@ -79,7 +79,7 @@ LikeC4 version ([ADR 0012](../../../docs/decisions/0012-release-the-editor-image
   package public (a package created by a workflow push starts private; the label
   `org.opencontainers.image.source` links it to this repo); the first release is the first time
   `docker login` and the push with the workflow's `GITHUB_TOKEN` run for real (the first release,
-  `0.1.0`, has been made; the current release is `0.1.1`).
+  `0.1.0`, has been made; the current release is `0.2.0`).
 - Labels: `org.opencontainers.image.title`, `.description` (the tagline and the notice),
   `.source`, `.licenses` (`MIT`), `.version` (the image version; `dev` for a local build) and
   `io.github.jakos.architecture-as-code.likec4-version` (the LikeC4 version the image is built
@@ -94,7 +94,7 @@ your repository):
 podman run --rm -p 127.0.0.1:8097:8080 \
   -e REPO_URL=<remote of the model repo> -e MODEL_PATH=<model directory in the repo> \
   -e PASSWORD=<password> -e MODEL_USER=<lowercase user id, e.g. jkostrzewa> -e MODEL_SLUG=<short topic> \
-  ghcr.io/jakos/likec4-model-editor:0.1
+  ghcr.io/jakos/likec4-model-editor:0.2
 ```
 
 `127.0.0.1:` keeps the editor on the local machine. The image needs no login to pull (the
@@ -111,11 +111,15 @@ LikeC4 version per release:
 
 | Release | LikeC4 |
 | --- | --- |
+| 0.2.0 | v1.59.4 |
 | 0.1.1 | v1.59.4 |
 | 0.1.0 | v1.59.4 |
 
-`0.1.0` cannot clone over HTTPS because the image has no CA certificates. Use `0.1.1`. The tag
-`0.1` points to `0.1.1`.
+`0.1.0` cannot clone over HTTPS because the image has no CA certificates. Use `0.1.1` or later. The tag
+`0.2` points to `0.2.0` and the tag `0.1` points to `0.1.1`.
+
+`0.2.0` adds the phone layout, the resizable and hideable desktop file tree, and mouse-wheel zoom
+of the diagram in the editor.
 
 ## What the patches do
 

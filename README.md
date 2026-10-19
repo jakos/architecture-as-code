@@ -57,7 +57,7 @@ Early draft. [docs/workflow.md](docs/workflow.md) has the detail.
 | Static site built and served locally (`just site`) | Generating Kubernetes objects (planned) |
 | Example site published on GitHub Pages from `main` (CI), with a demo of the model editor under `/editor/` (nothing is saved) | |
 | Example multi-team model in `examples/shop` | |
-| LikeC4 Model Editor released as `ghcr.io/jakos/likec4-model-editor` (current release `0.1.1`; single user, local use; [how to run](docker/editor/model-editor/README.md)) | |
+| LikeC4 Model Editor released as `ghcr.io/jakos/likec4-model-editor` (current release `0.2.0`; single user, local use; [how to run](docker/editor/model-editor/README.md)) | |
 
 ## Docs
 
