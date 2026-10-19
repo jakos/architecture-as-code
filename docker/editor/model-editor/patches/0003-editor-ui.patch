@@ -1,9 +1,9 @@
 diff --git a/apps/playground/src/aac/AacEditorLayout.tsx b/apps/playground/src/aac/AacEditorLayout.tsx
 new file mode 100644
-index 0000000..ae81b50
+index 0000000..d5b5222
 --- /dev/null
 +++ b/apps/playground/src/aac/AacEditorLayout.tsx
-@@ -0,0 +1,495 @@
+@@ -0,0 +1,551 @@
 +import { usePlayground, usePlaygroundContext } from '$hooks/usePlayground'
 +import {
 +  ActionIcon,
@@ -393,7 +393,17 @@ index 0000000..ae81b50
 +  const hidden = useRef(initial.current.hidden)
 +  // True from pointer down / key down on the separator until the library reports the user's layout.
 +  const interacting = useRef(false)
++  // The one timer that ends an interaction. A new interaction cancels it, so the timer of an earlier
++  // drag can never end a later drag early (drags can follow each other within the delay).
++  const interactionTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
 +  const [collapsed, setCollapsed] = useState(initial.current.hidden)
++  // Pointer listeners of the drag in progress, removed when it ends or the component unmounts.
++  const stopListening = useRef<(() => void) | undefined>(undefined)
++  // No timer or window listener outlives the component.
++  useEffect(() => () => {
++    clearTimeout(interactionTimer.current)
++    stopListening.current?.()
++  }, [])
 +  useEffect(() => {
 +    if (!phone && hidden.current) filesPanel.current?.collapse()
 +  }, [phone])
@@ -411,6 +421,41 @@ index 0000000..ae81b50
 +      hidden.current = true
 +      panel.collapse()
 +      saveTreeState(lastWidth.current, true)
++    }
++  }
++  const startInteraction = () => {
++    clearTimeout(interactionTimer.current)
++    interacting.current = true
++  }
++  // Ends the interaction 300 ms later. First it saves what the panel shows now, so the result of a drag is
++  // kept even if the library does not report it (it reports a layout only once, and not a repeated one).
++  const endInteractionSoon = () => {
++    clearTimeout(interactionTimer.current)
++    interactionTimer.current = setTimeout(() => {
++      const panel = filesPanel.current
++      if (panel) {
++        const px = panel.getSize().inPixels
++        hidden.current = px === 0
++        if (px >= TREE_MIN) lastWidth.current = px
++        saveTreeState(lastWidth.current, hidden.current)
++      }
++      interacting.current = false
++    }, 300)
++  }
++  // A drag ends with pointerup or, when the browser takes the pointer away, pointercancel. Either one ends it,
++  // so the interaction flag cannot stay set.
++  const listenForPointerEnd = () => {
++    stopListening.current?.()
++    const end = () => {
++      stopListening.current?.()
++      endInteractionSoon()
++    }
++    window.addEventListener('pointerup', end)
++    window.addEventListener('pointercancel', end)
++    stopListening.current = () => {
++      window.removeEventListener('pointerup', end)
++      window.removeEventListener('pointercancel', end)
++      stopListening.current = undefined
 +    }
 +  }
 +  const parts = (
@@ -467,6 +512,19 @@ index 0000000..ae81b50
 +        onResize={size => {
 +          const px = size.inPixels
 +          setCollapsed(px === 0)
++          // While the user works the separator, the panel reaching 0 px is "hidden" and leaving 0 px is
++          // "shown", exactly like the button. Saved here because onLayoutChanged is not always called for
++          // it. lastWidth keeps the width from before the drag, which Show brings back. Without an
++          // interaction (outer editor panel collapsed, window resize) nothing is saved.
++          if (interacting.current) {
++            if (px === 0 && !hidden.current) {
++              hidden.current = true
++              saveTreeState(lastWidth.current, true)
++            } else if (px > 0 && hidden.current) {
++              hidden.current = false
++              saveTreeState(lastWidth.current, false)
++            }
++          }
 +          // The library keeps the first measurement as a percentage, so the pixel width can come out wrong
 +          // (the group is measured again, wider). This runs on pixel changes, from the panel's ResizeObserver.
 +          // Not while the user drags or presses keys, and never for a collapsed or hidden tree.
@@ -483,15 +541,13 @@ index 0000000..ae81b50
 +        className={styles.resize}
 +        style={{ width: 5 }}
 +        onPointerDown={() => {
-+          interacting.current = true
-+          // Also clear after the pointer is released, in case the drag changes nothing.
-+          window.addEventListener('pointerup', () => setTimeout(() => (interacting.current = false), 300), {
-+            once: true,
-+          })
++          startInteraction()
++          // Also end it after the pointer is released or cancelled, in case the drag changes nothing.
++          listenForPointerEnd()
 +        }}
 +        onKeyDown={() => {
-+          interacting.current = true
-+          setTimeout(() => (interacting.current = false), 300)
++          startInteraction()
++          endInteractionSoon()
 +        }} />
 +      <Panel id="file-code-panel" minSize={200}>
 +        <Stack h="100%" gap={0} style={{ minWidth: 0 }}>{parts}</Stack>
